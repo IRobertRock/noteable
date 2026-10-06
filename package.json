@@ -1,0 +1,28 @@
+{
+  "name": "noteable",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check:drive-boundary": "node scripts/check-drive-boundary.mjs",
+    "icons": "pwa-assets-generator"
+  },
+  "devDependencies": {
+    "@vite-pwa/assets-generator": "2.0.0",
+    "fake-indexeddb": "6.2.5",
+    "happy-dom": "20.14.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.3",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.0.3",
+    "workbox-window": "7.4.1"
+  },
+  "dependencies": {
+    "idb": "8.0.3"
+  }
+}
