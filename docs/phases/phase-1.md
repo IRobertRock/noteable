@@ -1,6 +1,6 @@
 # Phase 1 — Shell and sign-in
 
-Status: **in progress** — code written and tested locally; waiting for the OAuth client ID, then deploy
+Status: **at the gate** — deployed to https://irobertrock.github.io/noteable/ on 2026-10-06; waiting for Rob to test on the S23 Ultra and laptop
 
 ## Goal
 
@@ -86,8 +86,8 @@ I can install Noteable from GitHub Pages on my S23 Ultra and laptop, sign in wit
     - `gh api -X POST repos/IRobertRock/<repo-name>/pages -f build_type=workflow` to switch Pages to Actions.
     - No `404.html` fallback is needed: the app is a single page with no client-side routes.
 11. [x] **Google Cloud setup** (done 2026-10-06 in the browser pane: project `noteable-510805`, Drive API on, External + Testing, Rob as test user, client `Noteable web`) (Rob does this, I walk him through it — see "Google Cloud setup" below), then put the client ID in `src/config.ts`.
-12. [ ] **Deploy and verify**: push to `main`, watch the Actions run with `gh run watch`, load the Pages URL, sign in on the laptop, check Drive.
-13. [ ] **Commit** with a clear message and tick off this document.
+12. [x] **Deploy and verify** (Actions run green; live page loads, service worker active, manifest valid, no console errors. Sign-in left to Rob, because it grants Drive access on his account): push to `main`, watch the Actions run with `gh run watch`, load the Pages URL, sign in on the laptop, check Drive.
+13. [x] **Commit** with a clear message and tick off this document.
 
 ## Tests
 
@@ -155,3 +155,4 @@ Use the Google account whose Drive will hold `Noteable/`.
 - Step 1: TypeScript 7.0.2 works with the whole toolchain; no fallback needed. `vite.config.ts` needs `/// <reference types="vitest/config" />` for the `test` block.
 - Step 10: workflow written (`.github/workflows/deploy.yml`, also runs the Drive-boundary check); repo not created yet.
 - Tests: 22 unit tests pass (DriveStorage, bootstrap, queue); typecheck, build and Drive-boundary check pass.
+- Local preview through the browser pane was skipped: the pane was still bound to another project's launch config. The live Pages site was checked instead.
