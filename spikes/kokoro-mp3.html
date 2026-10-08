@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kokoro + MP3 spike</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; background: #0b0d10; color: #e9edf2; padding: 16px; max-width: 640px; margin: auto; }
+      button { font: inherit; padding: 10px 16px; border-radius: 10px; border: 0; background: #f2b84b; }
+      pre { white-space: pre-wrap; background: #151920; padding: 12px; border-radius: 10px; }
+      select { font: inherit; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Kokoro + MP3 spike</h1>
+    <p>Generates about 2 minutes of speech, encodes 64 kbps mono MP3, and reports speed.</p>
+    <p>
+      <select id="device">
+        <option value="auto">Auto (WebGPU fp32, else WASM q8)</option>
+        <option value="webgpu">WebGPU fp32</option>
+        <option value="wasm">WASM q8</option>
+      </select>
+      <button id="run">Run</button>
+    </p>
+    <pre id="log"></pre>
+    <audio id="player" controls></audio>
+    <script type="module" src="./kokoro-mp3.ts"></script>
+  </body>
+</html>

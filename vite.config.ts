@@ -9,6 +9,16 @@ const base = '/noteable/';
 export default defineConfig({
   base,
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        // Phase 2 speed test; open /noteable/spikes/kokoro-mp3.html on each device.
+        spike: 'spikes/kokoro-mp3.html',
+      },
+    },
+  },
+  worker: { format: 'es' },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
@@ -33,6 +43,8 @@ export default defineConfig({
       workbox: {
         // App shell only. Google, Drive and Hugging Face requests are never cached here.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // The TTS engine is large and only needed when generating; it is cached on first use instead.
+        globIgnores: ['spikes/**', 'assets/spike-*', 'assets/tts.worker-*', 'assets/*.wasm'],
         navigateFallback: `${base}index.html`,
         runtimeCaching: [],
       },
