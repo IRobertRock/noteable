@@ -1,6 +1,6 @@
 # Phase 2 — Narrate a markdown file
 
-Status: **at the gate**: built, tested on the desktop, deployed 2026-10-08; waiting for Rob to test on the S23 Ultra
+Status: **done** — gate passed on the S23 Ultra on 2026-10-08 (3:18 of audio generated in 2:20, 1.41× real time)
 
 ## Goal
 
@@ -91,3 +91,4 @@ I can drop a markdown file into `Noteable/Inbox`, tap Import and Generate on my 
 - `npm audit` reports `sharp` / `onnxruntime-node` advisories. These are Node-only dependencies of `@huggingface/transformers` and are not in the browser bundle.
 - Bundle: the app shell precache is ~380 KB (markdown parser and MP3 encoder included, so encoding works offline). The 2.2 MB TTS worker and 21 MB ONNX runtime WASM are excluded from the precache and download on first Generate.
 - Tests: 43 unit tests (text processing, import, generation and resume, upload-waiting recovery, voice change, abort, resumable upload, binary round-trip).
+- 2026-10-08: **Gate passed** on the S23 Ultra. 3:18 of audio in 2:20 = 1.41× real time (WebGPU), in line with the 1.45× partial run in the Kokoro Phone Bench. Drive check afterwards: one `Noteable/` tree, item folder `Library/General/Phase 2 Gate Test/`, source moved out of the Inbox.

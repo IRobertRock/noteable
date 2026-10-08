@@ -1,6 +1,6 @@
 # Phase 1 — Shell and sign-in
 
-Status: **at the gate (phone checks not yet run; Rob chose to continue to Phase 2 on 2026-10-08)**, deployed to https://irobertrock.github.io/noteable/ on 2026-10-06; waiting for Rob to test on the S23 Ultra and laptop
+Status: **done**: deployed 2026-10-06; confirmed on the S23 on 2026-10-08 during the phase 2 gate (installed, signed in from a second device with no duplicate folders). The airplane-mode reopen check was not reported separately.
 
 ## Goal
 
