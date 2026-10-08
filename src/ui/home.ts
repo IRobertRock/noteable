@@ -7,6 +7,8 @@ export interface HomeProps {
   layoutError?: string;
   duplicateRoot: boolean;
   onRetry: () => void;
+  /** Extra sections shown above Sign out (settings). */
+  settings?: HTMLElement;
   onSignOut: (revoke: boolean) => void;
 }
 
@@ -48,6 +50,7 @@ export function homeScreen(p: HomeProps): HTMLElement {
     (p.layoutError || p.layout?.some((s) => s.state === 'error')) &&
       h('button', { onclick: p.onRetry }, 'Try again'),
 
+    p.settings,
     h(
       'footer',
       null,

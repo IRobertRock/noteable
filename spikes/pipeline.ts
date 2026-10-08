@@ -6,6 +6,11 @@ import { importMarkdown } from '../src/import/importMarkdown';
 import type { Item } from '../src/model/item';
 import { readJson } from '../src/storage/Storage';
 import { KokoroEngine } from '../src/tts/engine';
+import { LibraryIndex } from '../src/library/libraryIndex';
+import { Downloads } from '../src/offline/downloads';
+import { Player } from '../src/player/player';
+import { StateStore } from '../src/sync/state';
+import { writeJson } from '../src/storage/Storage';
 import { FakeDrive, makeStorage } from '../test/fakeDrive';
 
 const GUIDE = `---
@@ -67,5 +72,49 @@ document.getElementById('run')!.addEventListener('click', async () => {
     a.src = URL.createObjectURL(blob);
     players.append(Object.assign(document.createElement('div'), { textContent: c.title }), a);
   }
-  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary };
+  // ---- Player check (phase 3) ----
+  log('Player check…');
+  await writeJson(storage, 'State/playback.json', { version: 1, items: {} });
+  await writeJson(storage, 'State/bookmarks.json', { version: 1, bookmarks: [] });
+  const mem = new Map<string, unknown>();
+  const state = new StateStore(storage, 'pipeline', { get: async (k) => mem.get(k) as never, set: async (k, v) => void mem.set(k, v) });
+  const index = new LibraryIndex(storage, { all: async () => [], replace: async () => {} });
+  await index.refresh();
+  const entry = index.byPath(itemPath)!;
+  const player = new Player(new Downloads(storage), state, location.origin + '/noteable/pwa-512x512.png');
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const checks: Record<string, unknown> = {};
+
+  await player.open(entry);
+  await wait(800);
+  checks.playingAfterOpen = !player.audio.paused;
+  checks.chapterAfterOpen = player.chapter;
+  const md = navigator.mediaSession?.metadata;
+  checks.mediaSession = md ? { title: md.title, artist: md.artist, album: md.album } : null;
+
+  player.setSpeed(1.5);
+  checks.rate = player.audio.playbackRate;
+
+  player.skip(15);
+  await wait(300);
+  checks.afterSkipForwardChapter = player.chapter; // ch 1 is ~9 s, so +15 s moves to ch 2
+  await wait(1500);
+  checks.playingAfterSkip = !player.audio.paused;
+
+  player.seekTo(Math.max(0, player.audio.duration - 0.6));
+  await wait(2500);
+  checks.autoAdvancedTo = player.chapter; // ended → next chapter
+  checks.playingAfterAdvance = !player.audio.paused;
+
+  await player.previousChapter();
+  await wait(300);
+  checks.afterPrevious = player.chapter;
+
+  player.pause();
+  await wait(500);
+  const saved = (await readJson<{ items: Record<string, { chapter: number; positionSec: number; speed: number }> }>(storage, 'State/playback.json')).items[entry.item.id];
+  checks.savedToDrive = saved;
+  log(`  ${JSON.stringify(checks)}`);
+
+  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks };
 });

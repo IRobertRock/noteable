@@ -23,6 +23,7 @@
     "workbox-window": "7.4.1"
   },
   "dependencies": {
+    "dompurify": "3.4.16",
     "idb": "8.0.3",
     "kokoro-js": "1.2.1",
     "marked": "18.1.0",

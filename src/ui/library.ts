@@ -1,51 +1,88 @@
-// Simple library list for phase 2. Phase 3 replaces this with a synced local index.
+// Library: collections and their items, from the local index (works offline),
+// refreshed from Drive on open and every 2 minutes while visible.
 
-import { ITEM_FILE, itemDuration, type Item } from '../model/item';
-import { readJson, type Storage } from '../storage/Storage';
+import { itemHash, type App } from '../app';
+import type { IndexedItem } from '../library/libraryIndex';
+import { itemDuration, type Item } from '../model/item';
+import { listenedFraction } from '../player/player';
 import { formatDuration } from './format';
-import { h } from './h';
+import { fill, h } from './h';
 
-export function libraryScreen(ctx: { storage: Storage; openItem: (path: string) => void }): HTMLElement {
-  const body = h('div', null, h('p', { class: 'muted' }, 'Loading…'));
-  const screen = h('section', { class: 'screen' }, h('h1', null, 'Library'), body);
+const REFRESH_MS = 120_000;
 
-  (async () => {
-    try {
-      const collections = (await ctx.storage.list('Library')).filter((e) => e.kind === 'folder');
-      collections.sort((a, b) => a.name.localeCompare(b.name));
-      const groups: HTMLElement[] = [];
-      for (const col of collections) {
-        const folders = (await ctx.storage.list(col.path)).filter((e) => e.kind === 'folder');
-        const items = await Promise.all(
-          folders.map(async (f) => ({ path: f.path, item: await readJson<Item>(ctx.storage, `${f.path}/${ITEM_FILE}`).catch(() => null) })),
-        );
-        const rows = items
-          .filter((x): x is { path: string; item: Item } => !!x.item)
-          .sort((a, b) => b.item.updatedAt.localeCompare(a.item.updatedAt))
-          .map(({ path, item }) => itemRow(path, item, ctx.openItem));
-        groups.push(h('h2', null, col.name), rows.length ? h('div', { class: 'list' }, rows) : h('p', { class: 'muted small' }, 'Empty'));
-      }
-      body.replaceChildren(...groups);
-    } catch (err) {
-      body.replaceChildren(h('p', { class: 'error' }, (err as Error).message));
+export function libraryScreen(app: App): HTMLElement {
+  const status = h('p', { class: 'muted small' });
+  const body = h('div');
+  const refreshBtn = h('button', { class: 'small', onclick: () => void refresh() }, 'Refresh');
+  const screen = h('section', { class: 'screen' }, h('div', { class: 'title-row' }, h('h1', null, 'Library'), refreshBtn), status, body);
+
+  const render = () => {
+    const items = app.library.items;
+    const byCollection = new Map<string, IndexedItem[]>();
+    for (const c of app.library.collections) byCollection.set(c, []);
+    for (const x of items) byCollection.set(x.item.collection, [...(byCollection.get(x.item.collection) ?? []), x]);
+    const names = [...byCollection.keys()].sort((a, b) => (a === 'General' ? -1 : b === 'General' ? 1 : a.localeCompare(b)));
+
+    if (!items.length) {
+      fill(body, h('p', { class: 'muted' }, app.library.lastSynced ? 'No items yet. Import something from the Inbox.' : 'Loading…'));
+    } else {
+      fill(
+        body,
+        names.flatMap((name) => {
+          const rows = (byCollection.get(name) ?? []).sort((a, b) => b.item.updatedAt.localeCompare(a.item.updatedAt));
+          return [h('h2', null, name), rows.length ? h('div', { class: 'list' }, rows.map((x) => itemRow(app, x))) : h('p', { class: 'muted small' }, 'Empty')];
+        }),
+      );
     }
-  })();
+    status.textContent = app.library.lastSynced ? `Updated ${app.library.lastSynced.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : navigator.onLine ? 'Checking Drive…' : 'Offline — showing what this device knows.';
+  };
 
+  const refresh = async () => {
+    if (!navigator.onLine) return render();
+    refreshBtn.setAttribute('disabled', '');
+    try {
+      await Promise.all([app.library.refresh(), app.state.sync()]);
+    } catch (err) {
+      status.textContent = `Couldn't reach Drive: ${(err as Error).message}`;
+    } finally {
+      refreshBtn.removeAttribute('disabled');
+    }
+  };
+
+  app.onLeave(app.library.onChange(render));
+  app.onLeave(app.downloads.onChange(render));
+  app.onLeave(app.state.onChange(render));
+  const timer = setInterval(() => document.visibilityState === 'visible' && void refresh(), REFRESH_MS);
+  app.onLeave(() => clearInterval(timer));
+
+  render();
+  void refresh();
   return screen;
 }
 
 const STATUS: Record<Item['status'], string> = { draft: 'Not generated', generating: 'Generating', ready: 'Ready', error: 'Error' };
 
-function itemRow(path: string, item: Item, open: (p: string) => void): HTMLElement {
+function itemRow(app: App, entry: IndexedItem): HTMLElement {
+  const { item, path } = entry;
   const done = item.chapters.filter((c) => c.status === 'done').length;
+  const pos = app.state.position(item.id);
+  const listened = pos ? Math.round(listenedFraction(entry, pos.chapter, pos.positionSec) * 100) : 0;
+  const downloaded = app.downloads.isDownloaded(item) && done > 0;
   const detail =
     item.status === 'ready'
-      ? `${item.chapters.length} chapters · ${formatDuration(itemDuration(item))}`
-      : `${done}/${item.chapters.length} chapters done`;
+      ? `${formatDuration(itemDuration(item))}${listened ? ` · ${listened}% listened` : ''}`
+      : `${done}/${item.chapters.length} chapters generated`;
   return h(
     'button',
-    { class: 'row link', onclick: () => open(path) },
-    h('div', { class: 'grow' }, h('div', { class: 'name' }, item.title), h('div', { class: 'muted small' }, `${item.mode === 'teach' ? 'Teach' : 'Narrate'} · ${detail}`)),
-    h('span', { class: `pill ${item.status === 'ready' ? 'found' : item.status === 'error' ? 'error' : 'created'}` }, STATUS[item.status]),
+    { class: 'row link', onclick: () => app.go(itemHash(path)) },
+    h(
+      'div',
+      { class: 'grow' },
+      h('div', { class: 'name' }, item.title),
+      h('div', { class: 'muted small' }, `${item.mode === 'teach' ? 'Teach' : 'Narrate'} · ${detail}`),
+      listened > 0 && h('progress', { max: 100, value: listened }),
+    ),
+    downloaded && h('span', { class: 'pill found', title: 'Downloaded on this device' }, '⬇ Offline'),
+    item.status !== 'ready' && h('span', { class: `pill ${item.status === 'error' ? 'error' : 'created'}` }, STATUS[item.status]),
   );
 }
