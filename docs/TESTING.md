@@ -12,7 +12,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 1 | Install, sign-in, Drive folders | Passed on the S23 (Oct 8) except the offline check below |
 | 2 | Markdown file → chaptered MP3s on the phone | **Passed** (Oct 8, 1.41× real time) |
 | 3 | Player, reading view, offline, laptop → phone resume | **Not tested yet** |
-| 4 | Sleep mode for long generations | **Not tested yet** (being built) |
+| 4 | Sleep mode for long generations | **Not tested yet** |
 
 ---
 
@@ -47,7 +47,25 @@ Nice to check while you're there:
 
 ## Phase 4 — sleep mode (about 25 minutes, mostly waiting)
 
-_Steps will be added here when Phase 4 is deployed._
+> Done when: a 20-minute item generates on the S23 with the screen in sleep mode and the phone in a pocket.
+
+You need: the S23, charged to at least 60% (plugged in is better). The test file **phase-4-gate-test.md** (about 21 minutes of *Wealth of Nations*) is already in your Inbox.
+
+- [ ] 1. Close other heavy apps. Open Noteable → **Inbox** → **Import** next to `phase-4-gate-test.md`.
+- [ ] 2. On the item page, read the estimate under Generate (e.g. "about 21 min of audio. Ready in about 15 min on this Android phone"). Note it.
+- [ ] 3. Tap **Generate on this device**. If a Google window flashes up briefly, that's the sign-in being refreshed for the long job; it closes by itself.
+- [ ] 4. Tap **☾ Sleep mode**. A card explains it, then the screen goes black with a faint progress line.
+- [ ] 5. Tap the screen quickly: nothing happens. Press and hold for about 1.5 seconds: a ring fills and the normal screen comes back. Tap **☾ Sleep mode** again.
+- [ ] 6. Put the phone in your pocket and leave it until it buzzes. **Don't press the power button.**
+- [ ] 7. When it finishes, the phone vibrates, chimes, and the screen wakes.
+- [ ] 8. Check the item page: both chapters done, and an "× real time" line at the bottom. If it says chapters are **waiting to upload**, tap **Finish uploading**.
+- [ ] 9. Play a minute of chapter 2 to check the audio.
+- [ ] 10. Tell Claude: the estimate from step 2, how long it actually took, and how warm the phone got (cool / warm / hot).
+
+If anything goes wrong:
+- If the card says the browser won't keep the screen on, set **Settings → Display → Screen timeout** to 10 minutes and try again.
+- Samsung's **Accidental touch protection** can block the long press in a pocket. Take the phone out to wake it.
+- If the job stopped, open the item and tap **Resume generating**. It continues from the last 30-second checkpoint.
 
 ---
 

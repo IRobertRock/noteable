@@ -9,6 +9,7 @@ import { currentJob, onJobChange, type JobState } from '../generate/jobs';
 import { aboutMinutes } from '../generate/estimate';
 import { h } from '../ui/h';
 import { buzz, chime, unlockSound } from './completion';
+import { holdWakeLock } from './wakeLock';
 
 export const HOLD_MS = 1500;
 const MOVE_EVERY_MS = 60_000;
@@ -37,6 +38,14 @@ export function enterSleepMode(): void {
     h('p', null, 'To wake it, press and hold anywhere for 1.5 seconds.'),
     h('p', { class: 'warn' }, 'Pressing the power button or switching apps pauses the job. For long jobs, plug the phone in.'),
   );
+  // The job already holds the wake lock; asking again from this tap covers a browser that refused it earlier.
+  void holdWakeLock().then((ok) => {
+    if (ok) return;
+    intro.append(h('p', { class: 'warn' }, "This browser won't keep the screen on. Set Settings → Display → Screen timeout to 10 minutes or more, or the job will pause when the screen turns off."));
+    // Leave the warning up long enough to read.
+    intro.classList.remove('gone');
+    setTimeout(() => intro.classList.add('gone'), 15_000);
+  });
   const overlay = h('div', { class: 'sleep', role: 'dialog', 'aria-label': 'Sleep mode. Press and hold to wake.' }, intro, line, ring);
   document.body.append(overlay);
   document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {});
