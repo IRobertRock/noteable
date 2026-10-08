@@ -15,6 +15,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 4 | Sleep mode for long generations | **Not tested yet** |
 | 5 | PDF, Word, PowerPoint, EPUB, Google Docs import with cleanup | **Not tested yet** (needs a real deck + scanned reading) |
 | 6 | Send to desktop: the PC makes the audio while the phone is locked | **Not tested yet** (desktop set up and working; phone test to do) |
+| 7 | Study guides with answer pauses; Zotero import | **Not tested yet** |
 
 ---
 
@@ -110,6 +111,28 @@ Setup on the desktop is **done** (Oct 8): the worker is installed, starts with W
 - [ ] 8. Stall check: send another item to the desktop. While it's working, right-click the tray icon → **Quit**. On the phone the job shows "last update … ago", and after 15 minutes **Stalled**. Start the worker again (Start menu → type `Noteable worker`, or restart the PC). It carries on without redoing finished chapters.
 
 If the tray icon is **red**: right-click → **Sign in to Google again**. While the Google project is in Testing mode, this is needed about once a week.
+
+---
+
+## Phase 7 — study guides and Zotero (about 15 minutes)
+
+> Done when: a Claude-written guide plays with 5 s pauses before each answer, and a Zotero item imports with its PDF.
+
+**Study guide.** **phase-7-gate-guide.md** is already in your Inbox (a Teach guide in the Michael voice, with three review questions). Next time, you can ask Claude in chat to write a guide in the Noteable format and save it to Noteable/Inbox.
+
+- [ ] 1. Inbox → **Import** next to `phase-7-gate-guide.md`. It opens as a Teach item in **ECON 1000**, voice Michael.
+- [ ] 2. **Generate on this device** (or **Send to desktop**).
+- [ ] 3. Play the **Review questions** chapter. After each question there's a 5-second silence before "Answer…". Time one with a stopwatch. (Only the first question has a pause written in; the other two get it automatically.)
+- [ ] 4. Tap **Read**: the answers are blurred with "Tap to show answer", and tapping reveals each one. No "[pause 5s]" text shows.
+- [ ] 5. Change the voice on the item to Emma → **Generate again**. The new audio uses Emma.
+
+**Zotero.**
+- [ ] 6. On zotero.org: **Settings → Security → Create new private key**. Tick **Allow library access** (read-only), save, and copy the key.
+- [ ] 7. Noteable → **Account** → **Zotero**: paste the key → **Connect**. It says "Connected to <your name>'s library".
+- [ ] 8. **Inbox → 📚 From Zotero**: pick a collection or search, then **Import** a paper that has a PDF stored in Zotero. The text preview opens, cleaned. The item page shows "From Zotero: authors · year".
+- [ ] 9. Generate and play a chapter.
+
+If step 8 says it couldn't download the file: in Zotero, right-click the PDF → **Show File**, save a copy to Noteable/Inbox in Drive, and import it from the Inbox. Then tell Claude, so the download can be fixed.
 
 ---
 

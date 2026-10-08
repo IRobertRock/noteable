@@ -2,6 +2,7 @@
 // each source becomes one or more chapters, in the order given.
 
 import { DEFAULT_VOICE } from '../model/voices';
+import type { Item } from '../model/item';
 import { GOOGLE_DOC, GOOGLE_SLIDES, type Storage } from '../storage/Storage';
 import { cleanDoc } from './cleanup';
 import { createItem, type NewChapter, type SourceFile } from './createItem';
@@ -63,6 +64,8 @@ export interface ImportOptions {
   onProgress?: (message: string, fraction?: number) => void;
   /** Injected so tests can use Node's pdf.js; the app passes the browser build. */
   pdf?: PdfTools;
+  /** Extra item.json fields (e.g. Zotero details). */
+  extra?: Partial<Item>;
 }
 
 export interface DocumentImport {
@@ -110,6 +113,7 @@ export async function importDocuments(storage: Storage, sources: SourceRef[], op
     chapters,
     sources: files,
     ocr: ocrPages > 0,
+    extra: opts.extra,
   });
   return { itemPath, chapters: chapters.length, removed, ocrPages };
 }

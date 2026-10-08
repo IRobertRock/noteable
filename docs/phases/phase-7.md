@@ -1,6 +1,6 @@
 # Phase 7 — Teach-mode polish and Zotero
 
-Status: **planned** (not started)
+Status: **built, gate not yet tested**. Deployed 2026-10-08; the gate steps are in `docs/TESTING.md`.
 
 ## Goal
 
@@ -22,14 +22,14 @@ I can play a study guide Claude wrote in chat, with real pauses before each revi
 
 ## Steps
 
-1. [ ] `src/tts/markers.ts`: tokeniser for `[pause Ns]` (N from 0.5 to 60, decimals allowed), Q/A labels; output a sequence of `{ speak: string } | { silence: seconds }`. Runner inserts zeroed PCM for silence before encoding.
-2. [ ] Update `src/tts/speechText.ts` and `src/generate/runChapterJob.ts` (shared with worker) to consume the sequence.
-3. [ ] `src/import/guide.ts`: validate front matter (`title`, `collection`, `mode`, `voice`, `sources`), unknown voice → warning + default, unknown keys kept.
-4. [ ] Voice override UI in `src/ui/item.ts`, with a **Regenerate** action (this device / desktop).
-5. [ ] Library sync detects `guide.md` in item folders and new `.md` guides in Inbox with `mode: teach`.
-6. [ ] Zotero: `src/zotero/client.ts` (`https://api.zotero.org/users/<id>/items`, `Zotero-API-Key` header, `Zotero-API-Version: 3`), `src/ui/zotero.ts` (collections, search, item list), download attachment file (`/items/<key>/file`) → `sources/` → phase 5 PDF import. API key entered in Settings and stored in `State/settings.json` in Rob's Drive and in IndexedDB — not in the repo, not in the build.
-7. [ ] Reading view: Q/A styling, tap to reveal answer, key terms list styling.
-8. [ ] Commit, deploy, update this document.
+1. [x] `src/tts/markers.ts`: tokeniser for `[pause Ns]` (N from 0.5 to 60, decimals allowed), Q/A labels; output a sequence of `{ speak: string } | { silence: seconds }`. Runner inserts zeroed PCM for silence before encoding.
+2. [x] Update `src/tts/speechText.ts` and `src/generate/runChapterJob.ts` (shared with worker) to consume the sequence.
+3. [x] `src/import/guide.ts`: validate front matter (`title`, `collection`, `mode`, `voice`, `sources`), unknown voice → warning + default, unknown keys kept.
+4. [x] Voice override UI in `src/ui/item.ts`, with a **Regenerate** action (this device / desktop).
+5. [x] Library sync detects `guide.md` in item folders and new `.md` guides in Inbox with `mode: teach`.
+6. [x] Zotero: `src/zotero/client.ts` (`https://api.zotero.org/users/<id>/items`, `Zotero-API-Key` header, `Zotero-API-Version: 3`), `src/ui/zotero.ts` (collections, search, item list), download attachment file (`/items/<key>/file`) → `sources/` → phase 5 PDF import. API key entered in Settings and stored in `State/settings.json` in Rob's Drive and in IndexedDB — not in the repo, not in the build.
+7. [x] Reading view: Q/A styling, tap to reveal answer, key terms list styling.
+8. [x] Commit, deploy, update this document.
 
 ## Tests
 
@@ -51,6 +51,19 @@ I can play a study guide Claude wrote in chat, with real pauses before each revi
 
 ## Open questions
 
-1. Should a 5 s pause be inserted automatically before every `**A:**` even when Claude forgets the `[pause 5s]` marker? (Spec says both "fixed pause" and "`[pause Ns]`".)
-2. Zotero: personal library only, or group libraries too?
-3. Zotero key permissions: read-only is enough (we never write to Zotero). OK?
+1. Automatic 5 s pause before every `**A:**`: yes (default used; recommended in the kickoff risk list). A `[pause Ns]` the guide writes wins, shorter or longer.
+2. Zotero: personal library only for now (default).
+3. Zotero key: read-only library access is enough; the app never writes to Zotero.
+
+## Change log
+
+- 2026-10-08: built (Rob: "next phase").
+- **Answer pauses:** `**A:**` now produces a 5 s pause before "Answer…", even when the guide has no marker, including Q and A in the same paragraph. When pauses meet, a `[pause Ns]` written by the author wins over the automatic one (so `[pause 2s]` really is 2 s); otherwise the longest wins. `[pause Ns]` itself was already live from phase 2.
+- **Voice per item:** already in place since phase 2 (the header `voice` sets it; the voice picker on the item page plus Generate/Regenerate changes it). No new UI was needed.
+- **guide.md in an item folder:** the item page notices a `guide.md` the item hasn't used and offers **Use the study guide**: its `##` chapters replace the text, the item becomes Teach, the header voice is used, and leftover text and audio beyond its length are trashed. **Keep as is** dismisses that version; a changed guide.md is offered again. Guides saved to the Inbox work as before. A folder holding only a guide.md (no item.json) is not picked up; Claude should save new guides to the Inbox.
+- **Reading view:** `[pause Ns]` markers are hidden. Each `**A:**` answer is blurred behind "Tap to show answer", so the review questions work as a self-quiz. A Q and A written in one paragraph are split.
+- **Zotero:** only an API key is needed; `/keys/current` gives the user ID and username. It is stored in `State/settings.json` in Drive (synced to every device), never in the code. The Inbox has **📚 From Zotero**: collections, search, items with authors and year, and **Import** downloads the stored PDF and runs the normal PDF pipeline (cleanup, OCR, preview). The item page shows "From Zotero: authors · year · publication". The Account tab has Connect/Disconnect.
+- Checked from the live site: `api.zotero.org` allows the app's requests (CORS, custom headers). **Not verifiable without Rob's key:** downloading a stored file. Zotero redirects that to its file storage; if the browser blocks it, the error says to save the PDF to the Inbox from Zotero instead.
+- `src/settings.ts` now handles all `State/settings.json` reads and writes (keeps unknown keys).
+- Gate guide `phase-7-gate-guide.md` is in `Noteable/Inbox`: Teach, Michael, 3 review questions, only the first with an explicit `[pause 5s]`.
+- Tests: 132 (answer pauses and marker precedence, reader reveal/markers, guide.md switching and dismissal, Zotero client against a fake API).

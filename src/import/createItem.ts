@@ -28,6 +28,8 @@ export interface NewItem {
   chapters: NewChapter[];
   sources: SourceFile[];
   ocr?: boolean;
+  /** Extra item.json fields (e.g. Zotero details). */
+  extra?: Partial<Item>;
 }
 
 export async function createItem(storage: Storage, spec: NewItem): Promise<{ itemPath: string; item: Item }> {
@@ -54,6 +56,7 @@ export async function createItem(storage: Storage, spec: NewItem): Promise<{ ite
     })),
     status: 'draft',
     ...(spec.ocr ? { ocr: true } : {}),
+    ...spec.extra,
     createdAt: at,
     updatedAt: at,
   };

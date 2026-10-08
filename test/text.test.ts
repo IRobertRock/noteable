@@ -103,3 +103,29 @@ describe('speechPlan', () => {
     for (let i = 1; i < plan.length; i++) expect('pause' in plan[i] && 'pause' in plan[i - 1]).toBe(false);
   });
 });
+
+describe('teach-mode answer pauses', () => {
+  const pauses = (md: string) => speechPlan(md).filter((s) => 'pause' in s).map((s) => (s as { pause: number }).pause);
+  const said = (md: string) => speechPlan(md).filter((s) => 'say' in s).map((s) => (s as { say: string }).say);
+
+  it('adds a 5 s pause before every answer, even without a marker', () => {
+    const md = '## Review questions\n\n**Q:** One?\n\n**A:** Yes.\n\n**Q:** Two?\n\n**A:** No.\n';
+    expect(said(md)).toEqual(['Review questions.', 'Question. One?', 'Answer. Yes.', 'Question. Two?', 'Answer. No.']);
+    const plan = speechPlan(md);
+    const before = (text: string) => plan[plan.findIndex((s) => 'say' in s && s.say === text) - 1];
+    expect(before('Answer. Yes.')).toEqual({ pause: 5 });
+    expect(before('Answer. No.')).toEqual({ pause: 5 });
+  });
+
+  it('handles Q and A in the same paragraph', () => {
+    const plan = speechPlan('**Q:** Up or down? **A:** Up.');
+    expect(plan.filter((s) => 'say' in s)).toEqual([{ say: 'Question. Up or down?' }, { say: 'Answer. Up.' }]);
+    expect(plan[plan.findIndex((s) => 'say' in s && s.say.startsWith('Answer')) - 1]).toEqual({ pause: 5 });
+  });
+
+  it("an author's [pause Ns] wins over the default, shorter or longer", () => {
+    expect(pauses('**Q:** a?\n\n[pause 2s]\n\n**A:** b.')).toContain(2);
+    expect(pauses('**Q:** a?\n\n[pause 2s]\n\n**A:** b.')).not.toContain(5);
+    expect(pauses('**Q:** a? [pause 8s] **A:** b.')).toContain(8);
+  });
+});

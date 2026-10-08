@@ -8,29 +8,40 @@ export type SpeechStep = { say: string } | { pause: number };
 /** Silence after a heading, between paragraphs, and between groups inside a paragraph. */
 export const GAP = { heading: 0.7, paragraph: 0.45, group: 0.12, chapterStart: 0.6 } as const;
 
+/** Silence before each review answer (**A:**) unless the guide sets its own with [pause Ns]. */
+export const ANSWER_PAUSE = 5;
+
 const PAUSE_MARKER = /\[pause\s+(\d+(?:\.\d+)?)\s*s(?:ec(?:onds?)?)?\]/gi;
+/** Placed by inline() where an **A:** label was, so the answer pause can go right before it. */
+const ANSWER = '';
+
+/** Internal: where a pause came from decides which one wins when several meet. */
+type Step = { say: string } | { pause: number; from: 'gap' | 'marker' | 'answer' };
 
 export function speechPlan(markdown: string): SpeechStep[] {
-  const steps: SpeechStep[] = [{ pause: GAP.chapterStart }];
+  const steps: Step[] = [{ pause: GAP.chapterStart, from: 'gap' }];
   for (const block of blocks(marked.lexer(markdown))) {
     if (block.kind === 'pause') {
-      steps.push({ pause: block.seconds });
+      steps.push({ pause: block.seconds, from: 'marker' });
       continue;
     }
-    // Inline [pause Ns] markers inside a paragraph split it.
+    // Inline [pause Ns] markers and **A:** labels inside a paragraph split it.
     const pieces = block.text.split(PAUSE_MARKER);
     pieces.forEach((piece, i) => {
       if (i % 2 === 1) {
-        steps.push({ pause: Math.min(60, Number(piece)) });
+        steps.push({ pause: Math.min(60, Number(piece)), from: 'marker' });
         return;
       }
-      const groups = textToGroups(piece);
-      groups.forEach((g, j) => {
-        steps.push({ say: g });
-        if (j < groups.length - 1) steps.push({ pause: GAP.group });
+      piece.split(ANSWER).forEach((part, k) => {
+        if (k > 0) steps.push({ pause: ANSWER_PAUSE, from: 'answer' });
+        const groups = textToGroups(k > 0 ? `Answer. ${part.trim()}` : part);
+        groups.forEach((g, j) => {
+          steps.push({ say: g });
+          if (j < groups.length - 1) steps.push({ pause: GAP.group, from: 'gap' });
+        });
       });
     });
-    steps.push({ pause: block.kind === 'heading' ? GAP.heading : GAP.paragraph });
+    steps.push({ pause: block.kind === 'heading' ? GAP.heading : GAP.paragraph, from: 'gap' });
   }
   return mergePauses(steps);
 }
@@ -87,7 +98,7 @@ function inline(tokens: Token[]): string {
         case 'strong': {
           const text = inline((t as Tokens.Strong).tokens).trim();
           if (/^Q:?$/i.test(text)) return 'Question. ';
-          if (/^A:?$/i.test(text)) return 'Answer. ';
+          if (/^A:?$/i.test(text)) return ANSWER;
           return text;
         }
         case 'em':
@@ -130,12 +141,27 @@ function decode(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
-function mergePauses(steps: SpeechStep[]): SpeechStep[] {
+/**
+ * Neighbouring pauses become one. A [pause Ns] the author wrote beats the automatic
+ * answer pause (so "[pause 2s]" really is 2 s); otherwise the longest wins.
+ */
+function mergePauses(steps: Step[]): SpeechStep[] {
   const out: SpeechStep[] = [];
+  let run: { pause: number; from: 'gap' | 'marker' | 'answer' }[] = [];
+  const flush = () => {
+    if (!run.length) return;
+    const markers = run.filter((p) => p.from === 'marker');
+    const pool = markers.length ? markers : run;
+    out.push({ pause: Math.max(...pool.map((p) => p.pause)) });
+    run = [];
+  };
   for (const s of steps) {
-    const last = out[out.length - 1];
-    if ('pause' in s && last && 'pause' in last) last.pause = Math.max(last.pause, s.pause);
-    else out.push({ ...s });
+    if ('pause' in s) run.push(s);
+    else {
+      flush();
+      out.push({ say: s.say });
+    }
   }
+  flush();
   return out;
 }

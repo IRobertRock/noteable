@@ -31,6 +31,10 @@ export interface Item {
   error?: string;
   /** Some text came from OCR (shown as a reminder in the preview). */
   ocr?: boolean;
+  /** Where it came from in Zotero (for the item page). */
+  zotero?: { key: string; authors: string; year?: string; publication?: string };
+  /** The guide.md version this item last used or dismissed. */
+  guide?: { modifiedTime: string; dismissed?: boolean };
   createdAt: string;
   updatedAt: string;
   lastGenerated?: { device: string; engine: string; realTimeFactor: number; at: string };

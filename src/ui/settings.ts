@@ -1,6 +1,7 @@
 import type { App } from '../app';
 import { VOICES } from '../model/voices';
-import { readJson, writeJson } from '../storage/Storage';
+import { readSettings, updateSettings } from '../settings';
+import { ZoteroClient } from '../zotero/client';
 import { formatBytes } from './format';
 import { fill, h } from './h';
 
@@ -14,8 +15,7 @@ export function settingsSection(app: App): HTMLElement {
   select.addEventListener('change', async () => {
     voiceStatus.textContent = 'Saving…';
     try {
-      const current = await readJson<Record<string, unknown>>(app.storage, 'State/settings.json').catch(() => ({ version: 1 }));
-      await writeJson(app.storage, 'State/settings.json', { ...current, voice: select.value });
+      await updateSettings(app.storage, { voice: select.value });
       voiceStatus.textContent = 'Saved';
     } catch (err) {
       voiceStatus.textContent = `Not saved: ${(err as Error).message}`;
@@ -35,11 +35,44 @@ export function settingsSection(app: App): HTMLElement {
     );
   })();
 
+  // Zotero: paste a read-only key; the account is looked up from it.
+  const zotero = h('div', { class: 'field' });
+  const renderZotero = async () => {
+    const creds = (await readSettings(app.storage)).zotero;
+    if (creds) {
+      fill(
+        zotero,
+        h('span', null, 'Zotero'),
+        h('p', { class: 'small' }, `Connected to ${creds.username ?? `user ${creds.userId}`}'s library. `, h('a', { href: '#/zotero' }, 'Import from Zotero')),
+        h('button', { class: 'small', onclick: async () => (await updateSettings(app.storage, { zotero: undefined }), void renderZotero()) }, 'Disconnect'),
+      );
+      return;
+    }
+    const key = h('input', { type: 'password', placeholder: 'Zotero API key', autocomplete: 'off', 'aria-label': 'Zotero API key' }) as HTMLInputElement;
+    const status = h('span', { class: 'muted small' }, 'Create a key at zotero.org/settings/keys with "Allow library access" (read-only is enough).');
+    const connect = h('button', { class: 'small' }, 'Connect') as HTMLButtonElement;
+    connect.addEventListener('click', async () => {
+      connect.disabled = true;
+      status.textContent = 'Checking…';
+      try {
+        const creds2 = await ZoteroClient.connect(key.value);
+        await updateSettings(app.storage, { zotero: creds2 });
+        void renderZotero();
+      } catch (err) {
+        status.textContent = (err as Error).message;
+        connect.disabled = false;
+      }
+    });
+    fill(zotero, h('span', null, 'Zotero'), key, connect, status);
+  };
+  void renderZotero();
+
   return h(
     'div',
     { class: 'settings' },
     h('h2', null, 'Settings'),
     h('label', { class: 'field' }, h('span', null, 'Default voice for new items'), select, voiceStatus),
+    zotero,
     h('h2', null, 'This device'),
     storageLine,
   );

@@ -3,6 +3,8 @@ import { aboutMinutes, estimate, LONG_JOB_SEC, type Estimate } from '../generate
 import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
 import { enterSleepMode } from '../sleep/sleepScreen';
 import { activeJobFor, listJobs, sendToDesktop, type JobView } from '../queue/jobs';
+import { applyGuide, dismissGuide, newGuide } from '../import/guideInItem';
+import type { Entry } from '../storage/Storage';
 import { detail as jobDetail } from './queue';
 import type { IndexedItem } from '../library/libraryIndex';
 import { ITEM_FILE, itemDuration, type Item } from '../model/item';
@@ -22,6 +24,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
   let message: string | undefined;
   let est: Estimate | null = null;
   let desktopJob: JobView | undefined;
+  let guide: Entry | null = null;
 
   const refresh = async () => {
     try {
@@ -35,6 +38,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       voice ||= entry?.item.voice ?? '';
       if (entry) est = await estimate(entry.item);
       if (navigator.onLine) desktopJob = activeJobFor(await listJobs(app.storage).catch(() => []), itemPath);
+      if (navigator.onLine && entry) guide = await newGuide(app.storage, itemPath, entry.item).catch(() => null);
       render();
     } catch (err) {
       if (entry) render();
@@ -70,7 +74,50 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
           (pos && ready ? ` · ${Math.round(listenedFraction(entry, pos.chapter, pos.positionSec) * 100)}% listened` : ''),
         pos && !playingThis && h('span', { class: 'small' }, ` (last on ${pos.device})`),
       ),
+      item.zotero && h('p', { class: 'muted small' }, `From Zotero: ${[item.zotero.authors, item.zotero.year, item.zotero.publication].filter(Boolean).join(' · ')}`),
       message && h('p', { class: 'error', role: 'alert' }, message),
+      guide &&
+        !mine?.running &&
+        !desktopJob &&
+        h(
+          'div',
+          { class: 'banner action column' },
+          h('span', null, h('strong', null, 'A study guide was added to this item (guide.md). '), 'Listen to the guide instead? Its chapters replace the current text', done > 0 ? ' and audio' : '', '; the original files stay in sources/.'),
+          h(
+            'div',
+            { class: 'buttons' },
+            h(
+              'button',
+              {
+                class: 'primary small',
+                onclick: async () => {
+                  try {
+                    await app.reconnectNow();
+                    const next = await applyGuide(app.storage, itemPath, entry!.item, guide!);
+                    voice = next.voice;
+                    guide = null;
+                  } catch (err) {
+                    message = (err as Error).message;
+                  }
+                  await refresh();
+                },
+              },
+              'Use the study guide',
+            ),
+            h(
+              'button',
+              {
+                class: 'small',
+                onclick: async () => {
+                  await dismissGuide(app.storage, itemPath, entry!.item, guide!).catch(() => {});
+                  guide = null;
+                  await refresh();
+                },
+              },
+              'Keep as is',
+            ),
+          ),
+        ),
       item.ocr && done === 0 && h('p', { class: 'banner' }, 'Some text was read from scanned pages. Check it before generating.'),
 
       done > 0 &&

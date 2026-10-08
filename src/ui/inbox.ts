@@ -34,6 +34,7 @@ export function inboxScreen(app: App): HTMLElement {
       { class: 'buttons' },
       h('button', { onclick: () => upload.click() }, '⬆ Upload from this device'),
       app.storage.browse && h('button', { onclick: () => app.go('#/drive') }, '📁 Pick from Google Drive'),
+      h('button', { onclick: () => app.go('#/zotero') }, '📚 From Zotero'),
     ),
     upload,
     message,

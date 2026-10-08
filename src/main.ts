@@ -9,7 +9,7 @@ import { DEFAULT_VOICE, toVoiceId } from './model/voices';
 import { Downloads } from './offline/downloads';
 import { Player } from './player/player';
 import { DriveStorage } from './storage/DriveStorage';
-import { readJson } from './storage/Storage';
+import { readSettings } from './settings';
 import { ensureLayout, type LayoutStatus } from './storage/bootstrap';
 import { StateStore } from './sync/state';
 import { homeScreen } from './ui/home';
@@ -18,6 +18,7 @@ import { driveBrowserScreen } from './ui/driveBrowser';
 import { editScreen } from './ui/edit';
 import { inboxScreen } from './ui/inbox';
 import { queueScreen } from './ui/queue';
+import { zoteroScreen } from './ui/zotero';
 import { itemScreen } from './ui/item';
 import { libraryScreen } from './ui/library';
 import { miniPlayer, playerScreen } from './ui/player';
@@ -68,6 +69,7 @@ type Route =
   | { name: 'account' }
   | { name: 'player' }
   | { name: 'queue' }
+  | { name: 'zotero' }
   | { name: 'item'; path: string }
   | { name: 'read'; path: string }
   | { name: 'edit'; path: string }
@@ -83,13 +85,13 @@ function route(): Route {
   if (hash === 'account') return { name: 'account' };
   if (hash === 'player') return { name: 'player' };
   if (hash === 'queue') return { name: 'queue' };
+  if (hash === 'zotero') return { name: 'zotero' };
   return { name: 'library' };
 }
 
 async function defaultVoice(): Promise<string> {
   try {
-    const settings = await readJson<{ voice?: string }>(storage, 'State/settings.json');
-    return toVoiceId(settings.voice) ?? DEFAULT_VOICE;
+    return toVoiceId((await readSettings(storage)).voice) ?? DEFAULT_VOICE;
   } catch {
     return DEFAULT_VOICE;
   }
@@ -110,6 +112,9 @@ function render(): void {
   switch (r.name) {
     case 'inbox':
       screen = inboxScreen(app);
+      break;
+    case 'zotero':
+      screen = zoteroScreen(app);
       break;
     case 'queue':
       screen = queueScreen(app);
@@ -158,7 +163,7 @@ function render(): void {
         { class: 'tabs' },
         tab('#/', 'Library', inLibrary),
         tab('#/player', 'Player', r.name === 'player'),
-        tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive'),
+        tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive' || r.name === 'zotero'),
         tab('#/queue', 'Queue', r.name === 'queue'),
         tab('#/account', 'Account', r.name === 'account'),
       ),
