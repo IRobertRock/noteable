@@ -38,7 +38,7 @@ Every decision below was made in the planning chat on Oct 5–6, 2026.
 | Teach mode | Guides written by Claude in chat and saved to Drive; length set by how much there is to teach |
 | Outputs | Audio plus a readable version in the app |
 | Library | One app folder; collections for courses or anything else, plus Inbox |
-| Player | Speed 0.75–2×, ±15 s skip, chapter jump, lock-screen and earbud controls, sleep timer, bookmarks with notes, synced resume |
+| Player | Speed 0.75–2×, ±15 s skip, chapter jump, lock-screen and earbud controls, bookmarks with notes, synced resume (sleep timer dropped by Rob, Oct 8) |
 | Review questions | Fixed pause before each answer |
 
 ## Architecture
@@ -76,7 +76,7 @@ Noteable/
   State/
     playback.json            resume positions per item and chapter
     bookmarks.json           bookmarks with notes
-    settings.json            default voice, speed, sleep-timer length
+    settings.json            default voice
 ```
 
 The app never calls Drive directly. It calls a `Storage` adapter with these operations:
@@ -188,10 +188,9 @@ The player is built for hands-free listening on transit, and the reading view sh
 
 **Player**
 
-- Playback speed from 0.75× to 2× in 0.25 steps, remembered per item.
+- Playback speed from 0.75× to 2× in 0.25 steps, remembered per item. New items start at 1×.
 - Skip back and forward 15 s, and jump to the previous or next chapter.
 - Lock-screen and earbud controls through the Media Session API, showing the title, chapter and collection.
-- Sleep timer: 15, 30 or 45 min, or end of chapter.
 - Bookmarks at the current time, each with an optional note.
 - Resume position saved every 10 s and on pause, and synced through Drive.
 - Review-question pauses are baked into the audio as silence.
@@ -227,7 +226,7 @@ Seven phases, each ending in something Rob can use on his phone. A phase is done
    - Done when: the PWA installs on the S23 and laptop, signs in, and creates the Drive folders.
 2. **Narrate a markdown file.** Inbox listing, markdown import, chapter split, kokoro-js generation with progress saving, MP3 encoding, upload to the item folder.
    - Done when: a markdown file dropped in the Inbox becomes chaptered MP3s in Drive, generated on the phone.
-3. **Player, reading view and sync.** Media Session controls, speed, skip, chapter jump, sleep timer, bookmarks, resume sync, reading view, Download for offline.
+3. **Player, reading view and sync.** Media Session controls, speed, skip, chapter jump, bookmarks, resume sync, reading view, Download for offline.
    - Done when: Rob starts an item on the laptop and resumes it on the phone at the same spot, in airplane mode after downloading.
 4. **Sleep mode.** Wake Lock, black screen with drifting progress, touch lock, completion chime and vibration, measured-speed estimate.
    - Done when: a 20-minute item generates on the S23 with the screen in sleep mode and the phone in a pocket.

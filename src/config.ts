@@ -20,7 +20,7 @@ export const LAYOUT_FOLDERS = ['Inbox', 'Library/General', 'Queue', 'State'] as 
 export const LAYOUT_FILES: Record<string, unknown> = {
   'State/playback.json': { version: 1, items: {} },
   'State/bookmarks.json': { version: 1, bookmarks: [] },
-  'State/settings.json': { version: 1, voice: 'af_bella', speed: 1, sleepTimerMin: 30 },
+  'State/settings.json': { version: 1, voice: 'af_bella' },
 };
 
 /** Treat a token as expired this long before Google says it is. */

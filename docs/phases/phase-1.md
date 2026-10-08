@@ -156,3 +156,4 @@ Use the Google account whose Drive will hold `Noteable/`.
 - Step 10: workflow written (`.github/workflows/deploy.yml`, also runs the Drive-boundary check); repo not created yet.
 - Tests: 22 unit tests pass (DriveStorage, bootstrap, queue); typecheck, build and Drive-boundary check pass.
 - Local preview through the browser pane was skipped: the pane was still bound to another project's launch config. The live Pages site was checked instead.
+- 2026-10-08: new installs write `settings.json` as `{"version":1,"voice":"af_bella"}`; the sleep timer and default speed were dropped. Rob's existing file still has the old keys, which are harmless and ignored.
