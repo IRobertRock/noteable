@@ -84,11 +84,11 @@ export class Downloads {
   isDownloaded(item: Item): boolean {
     const r = this.records[item.id];
     if (!r) return false;
-    return item.chapters.filter((c) => c.status === 'done').every((c) => r.chapters.includes(c.n));
+    return item.chapters.filter((c) => c.status === 'done' && !c.excluded).every((c) => r.chapters.includes(c.n));
   }
 
   async download({ path, item }: IndexedItem): Promise<void> {
-    const chapters = item.chapters.filter((c) => c.status === 'done' && c.audioFile);
+    const chapters = item.chapters.filter((c) => c.status === 'done' && !c.excluded && c.audioFile);
     let bytes = 0;
     // Ask the browser not to clear downloads when space runs low (granted readily to installed apps).
     await navigator.storage?.persist?.().catch(() => false);

@@ -6,7 +6,7 @@
 // chapter, a checkpoint every ~30 s of audio means a killed page resumes
 // mid-chapter instead of starting the chapter again.
 
-import { chapterFile, ITEM_FILE, type Item } from '../model/item';
+import { chapterFile, isComplete, ITEM_FILE, type Item } from '../model/item';
 import { readJson, readText, writeJson, type Storage } from '../storage/Storage';
 import type { CreateMp3Writer } from '../audio/mp3';
 import type { LoadProgress, TtsEngine } from '../tts/engine';
@@ -64,7 +64,7 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
   }
 
   const waiting = new Set((await pending.list(itemPath)).map((p) => p.n));
-  const todo = item.chapters.filter((c) => c.status !== 'done' && !waiting.has(c.n));
+  const todo = item.chapters.filter((c) => c.status !== 'done' && !c.excluded && !waiting.has(c.n));
 
   // Read all chapter text now: a long job can outlive the sign-in token.
   const texts = new Map<number, string>();
@@ -75,8 +75,8 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
 
   const progress: GenerateProgress = {
     phase: 'loading-model',
-    chaptersDone: item.chapters.length - todo.length,
-    chaptersTotal: item.chapters.length,
+    chaptersDone: item.chapters.filter((c) => !c.excluded).length - todo.length,
+    chaptersTotal: item.chapters.filter((c) => !c.excluded).length,
     chapterFraction: 0,
     audioSec: 0,
     elapsedSec: 0,
@@ -184,8 +184,8 @@ async function uploadPending(itemPath: string, item: Item, storage: Storage, pen
     const ch = chapters.find((c) => c.n === p.n);
     if (ch) Object.assign(ch, { status: 'done', audioFile, durationSec: round(p.durationSec) });
   }
-  const allDone = chapters.every((c) => c.status === 'done');
-  const next: Item = { ...item, chapters, status: allDone ? 'ready' : 'generating', updatedAt: new Date().toISOString() };
+  const next: Item = { ...item, chapters, updatedAt: new Date().toISOString() };
+  next.status = isComplete(next) ? 'ready' : 'generating';
   await writeJson(storage, `${itemPath}/${ITEM_FILE}`, next);
   // Only forget the local copies once item.json records them as done.
   for (const p of waiting) await pending.delete(itemPath, p.n);

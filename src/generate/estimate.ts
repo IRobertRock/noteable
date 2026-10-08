@@ -30,7 +30,7 @@ const idbKv: EstimateKv = { get: kvGet, set: kvSet };
 
 export async function estimate(item: Item, kv: EstimateKv = idbKv): Promise<Estimate> {
   const cps = (await kv.get<number>(CPS_KEY)) ?? DEFAULT_CHARS_PER_SEC;
-  const todo = item.chapters.filter((c) => c.status !== 'done');
+  const todo = item.chapters.filter((c) => c.status !== 'done' && !c.excluded);
   const audioSec = todo.reduce((n, c) => n + c.chars, 0) / cps;
   const rtf = median((await kv.get<number[]>(RTF_KEY)) ?? []);
   return { audioSec, charsPerSec: cps, realTimeFactor: rtf, generateSec: rtf ? audioSec / rtf : undefined };

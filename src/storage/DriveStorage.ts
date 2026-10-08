@@ -9,6 +9,7 @@ import {
   readJson,
   writeJson,
   type Entry,
+  type ExternalEntry,
   type Job,
   type JobResult,
   type NewJob,
@@ -241,6 +242,28 @@ export class DriveStorage implements Storage {
       body: JSON.stringify({ name: basename(p), mimeType: FOLDER, parents: [parent.id] }),
     });
     return this.remember(p, (await res.json()) as DriveFile);
+  }
+
+  // ---- files elsewhere in My Drive ----
+
+  async browse(folderId = 'root'): Promise<ExternalEntry[]> {
+    const files = await this.query(`'${escapeQuery(folderId)}' in parents and trashed=false`, 'folder,name');
+    return files.map((f) => ({
+      id: f.id,
+      name: f.name,
+      kind: f.mimeType === FOLDER ? 'folder' : 'file',
+      mimeType: f.mimeType,
+      size: f.size === undefined ? undefined : Number(f.size),
+      modifiedTime: f.modifiedTime,
+    }));
+  }
+
+  async readById(id: string): Promise<Blob> {
+    return (await this.request(`${API}/files/${encodeURIComponent(id)}?alt=media`)).blob();
+  }
+
+  async exportById(id: string, mimeType: string): Promise<Blob> {
+    return (await this.request(`${API}/files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent(mimeType)}`)).blob();
   }
 
   // ---- internals ----

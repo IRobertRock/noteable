@@ -17,6 +17,16 @@ export default defineConfig({
         spike: 'spikes/kokoro-mp3.html',
         // End-to-end generation test against an in-memory Drive.
         pipeline: 'spikes/pipeline.html',
+        // Import check (PDF, OCR, PPTX, DOCX) against an in-memory Drive.
+        importcheck: 'spikes/import.html',
+      },
+      output: {
+        // Import libraries (PDF, Word, zip, OCR) load only when importing; prefix them so the
+        // service worker leaves them out of the app-shell precache.
+        chunkFileNames: (chunk) =>
+          /node_modules[\/](pdfjs-dist|mammoth|jszip|tesseract\.js|pako|lop|dingbat-to-unicode|underscore|bluebird|xmlbuilder|@xmldom)/.test(chunk.moduleIds.join('|'))
+            ? 'assets/import-[name]-[hash].js'
+            : 'assets/[name]-[hash].js',
       },
     },
   },
@@ -46,7 +56,7 @@ export default defineConfig({
         // App shell only. Google, Drive and Hugging Face requests are never cached here.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         // The TTS engine is large and only needed when generating; it is cached on first use instead.
-        globIgnores: ['spikes/**', 'assets/spike-*', 'assets/pipeline-*', 'assets/tts.worker-*', 'assets/*.wasm'],
+        globIgnores: ['spikes/**', 'assets/spike-*', 'assets/pipeline-*', 'assets/importcheck-*', 'assets/tts.worker-*', 'assets/import-*', 'assets/*.wasm'],
         navigateFallback: `${base}index.html`,
         // The test pages are real pages, not app routes.
         navigateFallbackDenylist: [/\/spikes\//],

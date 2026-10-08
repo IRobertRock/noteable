@@ -65,7 +65,28 @@ export interface Storage {
   stat(path: string): Promise<Entry | null>;
   /** Idempotent, like `mkdir -p`. */
   mkdir(path: string): Promise<Entry>;
+
+  // Phase 5: files elsewhere in the user's Drive (Drive import, Google Docs).
+  // Optional, because a future RailwayStorage may not reach the user's Drive.
+  /** Lists a folder anywhere in My Drive; no id means My Drive's top level. */
+  browse?(folderId?: string): Promise<ExternalEntry[]>;
+  /** Reads a file by its backend id (from `browse` or an Entry). */
+  readById?(id: string): Promise<Blob>;
+  /** Converts a Google Docs/Slides file, e.g. to text/markdown or .pptx. */
+  exportById?(id: string, mimeType: string): Promise<Blob>;
 }
+
+export interface ExternalEntry {
+  id: string;
+  name: string;
+  kind: EntryKind;
+  mimeType: string;
+  size?: number;
+  modifiedTime: string;
+}
+
+export const GOOGLE_DOC = 'application/vnd.google-apps.document';
+export const GOOGLE_SLIDES = 'application/vnd.google-apps.presentation';
 
 export async function readText(storage: Storage, path: string): Promise<string> {
   return (await storage.read(path)).text();

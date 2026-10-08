@@ -237,12 +237,12 @@ export class Player {
   }
 
   private nextPlayable(): number | null {
-    const c = this.entry?.item.chapters.find((x) => x.n > this.chapter && x.status === 'done');
+    const c = this.entry?.item.chapters.find((x) => x.n > this.chapter && x.status === 'done' && !x.excluded);
     return c ? c.n : null;
   }
 
   private prevPlayable(): number | null {
-    const list = this.entry?.item.chapters.filter((x) => x.n < this.chapter && x.status === 'done') ?? [];
+    const list = this.entry?.item.chapters.filter((x) => x.n < this.chapter && x.status === 'done' && !x.excluded) ?? [];
     return list.length ? list[list.length - 1].n : null;
   }
 
@@ -309,12 +309,12 @@ export class Player {
 }
 
 function firstPlayable(entry: IndexedItem): number {
-  return entry.item.chapters.find((c) => c.status === 'done')?.n ?? 1;
+  return entry.item.chapters.find((c) => c.status === 'done' && !c.excluded)?.n ?? 1;
 }
 
 /** Fraction of an item listened to, from its saved position. */
 export function listenedFraction(entry: IndexedItem, chapter: number, positionSec: number): number {
-  const chapters = entry.item.chapters;
+  const chapters = entry.item.chapters.filter((c) => !c.excluded);
   const total = chapters.reduce((s, c) => s + (c.durationSec ?? 0), 0);
   if (!total) return 0;
   const before = chapters.filter((c) => c.n < chapter).reduce((s, c) => s + (c.durationSec ?? 0), 0);

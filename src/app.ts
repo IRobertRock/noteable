@@ -26,3 +26,4 @@ export interface App {
 
 export const itemHash = (path: string) => `#/item/${encodeURIComponent(path)}`;
 export const readHash = (path: string) => `#/read/${encodeURIComponent(path)}`;
+export const editHash = (path: string) => `#/edit/${encodeURIComponent(path)}`;

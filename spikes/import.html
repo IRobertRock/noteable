@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Noteable import test</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; background: #0b0d10; color: #e9edf2; padding: 16px; max-width: 720px; margin: auto; }
+      button { font: inherit; padding: 10px 16px; border-radius: 10px; border: 0; background: #f2b84b; }
+      pre { white-space: pre-wrap; background: #151920; padding: 12px; border-radius: 10px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>Import test</h1>
+    <p>Builds a text PDF, a scanned (image-only) PDF, a slide deck and a Word file in the browser, imports each into an in-memory Drive, and shows the cleaned chapters. Your Google Drive is not touched. The scanned PDF downloads the OCR engine (~15 MB) on first run.</p>
+    <button id="run">Run</button>
+    <pre id="log"></pre>
+    <script type="module" src="./import.ts"></script>
+  </body>
+</html>

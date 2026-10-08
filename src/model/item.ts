@@ -13,6 +13,8 @@ export interface Chapter {
   durationSec?: number;
   chars: number;
   status: ChapterStatus;
+  /** Left out of audio and reading (set in the preview). */
+  excluded?: boolean;
 }
 
 export interface Item {
@@ -27,6 +29,8 @@ export interface Item {
   chapters: Chapter[];
   status: ItemStatus;
   error?: string;
+  /** Some text came from OCR (shown as a reminder in the preview). */
+  ocr?: boolean;
   createdAt: string;
   updatedAt: string;
   lastGenerated?: { device: string; engine: string; realTimeFactor: number; at: string };
@@ -38,6 +42,18 @@ export function chapterFile(dir: 'text' | 'audio', n: number): string {
   return `${dir}/${String(n).padStart(2, '0')}.${dir === 'text' ? 'md' : 'mp3'}`;
 }
 
+/** Chapters that count: not excluded in the preview. */
+export function activeChapters(item: Item): Chapter[] {
+  return item.chapters.filter((c) => !c.excluded);
+}
+
+export function isComplete(item: Item): boolean {
+  return activeChapters(item).every((c) => c.status === 'done');
+}
+
+/** Per-chapter list of what cleanup removed, for "Show removed". */
+export const REMOVED_FILE = 'text/removed.json';
+
 export function itemDuration(item: Item): number {
-  return item.chapters.reduce((sum, c) => sum + (c.durationSec ?? 0), 0);
+  return activeChapters(item).reduce((sum, c) => sum + (c.durationSec ?? 0), 0);
 }

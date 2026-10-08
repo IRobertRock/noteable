@@ -36,7 +36,7 @@ export function readerScreen(app: App, path: string): HTMLElement {
 
   (async () => {
     const parts: HTMLElement[] = [h('p', { class: 'muted small' }, h('a', { href: itemHash(path) }, `${item.collection} › ${item.title}`)), h('h1', null, item.title)];
-    for (const c of item.chapters) {
+    for (const c of item.chapters.filter((x) => !x.excluded)) {
       let html: string;
       try {
         html = DOMPurify.sanitize(await marked.parse(await app.downloads.text(entry, c.n)));

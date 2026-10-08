@@ -1,4 +1,4 @@
-import { readHash, type App } from '../app';
+import { editHash, readHash, type App } from '../app';
 import { aboutMinutes, estimate, LONG_JOB_SEC, type Estimate } from '../generate/estimate';
 import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
 import { enterSleepMode } from '../sleep/sleepScreen';
@@ -67,6 +67,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
         pos && !playingThis && h('span', { class: 'small' }, ` (last on ${pos.device})`),
       ),
       message && h('p', { class: 'error', role: 'alert' }, message),
+      item.ocr && done === 0 && h('p', { class: 'banner' }, 'Some text was read from scanned pages. Check it before generating.'),
 
       done > 0 &&
         h(
@@ -116,12 +117,13 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
         ),
 
       done === 0 || showGenerate || mine || !ready ? generateSection(item, mine, done) : h('button', { class: 'link-button small', onclick: () => ((showGenerate = true), render()) }, 'Regenerate…'),
+      !mine?.running && h('button', { class: done === 0 ? undefined : 'link-button small', onclick: () => app.go(editHash(itemPath)) }, done === 0 ? '✎ Check / edit the text' : 'Edit text…'),
 
       h('h2', null, 'Chapters'),
       h(
         'ol',
         { class: 'status chapters' },
-        item.chapters.map((c) => {
+        item.chapters.filter((c) => !c.excluded).map((c) => {
           const generating = mine?.running && mine.progress?.chapter === c.n;
           const isCurrent = playingThis && app.player.chapter === c.n;
           return h(

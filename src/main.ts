@@ -1,7 +1,6 @@
 import './style.css';
 import { registerSW } from 'virtual:pwa-register';
 import type { App } from './app';
-import { itemHash } from './app';
 import { GoogleAuth, NeedsTapError } from './auth/google';
 import { ROOT_FOLDER } from './config';
 import { currentJob, deviceName } from './generate/jobs';
@@ -15,6 +14,8 @@ import { ensureLayout, type LayoutStatus } from './storage/bootstrap';
 import { StateStore } from './sync/state';
 import { homeScreen } from './ui/home';
 import { h, mount } from './ui/h';
+import { driveBrowserScreen } from './ui/driveBrowser';
+import { editScreen } from './ui/edit';
 import { inboxScreen } from './ui/inbox';
 import { itemScreen } from './ui/item';
 import { libraryScreen } from './ui/library';
@@ -66,12 +67,16 @@ type Route =
   | { name: 'account' }
   | { name: 'player' }
   | { name: 'item'; path: string }
-  | { name: 'read'; path: string };
+  | { name: 'read'; path: string }
+  | { name: 'edit'; path: string }
+  | { name: 'drive'; folderId?: string };
 
 function route(): Route {
   const hash = location.hash.replace(/^#\/?/, '');
   if (hash.startsWith('item/')) return { name: 'item', path: decodeURIComponent(hash.slice(5)) };
   if (hash.startsWith('read/')) return { name: 'read', path: decodeURIComponent(hash.slice(5)) };
+  if (hash.startsWith('edit/')) return { name: 'edit', path: decodeURIComponent(hash.slice(5)) };
+  if (hash === 'drive' || hash.startsWith('drive/')) return { name: 'drive', folderId: hash.length > 6 ? decodeURIComponent(hash.slice(6)) : undefined };
   if (hash === 'inbox') return { name: 'inbox' };
   if (hash === 'account') return { name: 'account' };
   if (hash === 'player') return { name: 'player' };
@@ -101,7 +106,13 @@ function render(): void {
   let screen: HTMLElement;
   switch (r.name) {
     case 'inbox':
-      screen = inboxScreen({ storage, defaultVoice, openItem: (path) => app.go(itemHash(path)) });
+      screen = inboxScreen(app);
+      break;
+    case 'drive':
+      screen = driveBrowserScreen(app, r.folderId);
+      break;
+    case 'edit':
+      screen = editScreen(app, r.path);
       break;
     case 'item':
       screen = itemScreen(app, r.path);
@@ -127,7 +138,7 @@ function render(): void {
       screen = libraryScreen(app);
   }
 
-  const inLibrary = r.name === 'library' || r.name === 'item' || r.name === 'read';
+  const inLibrary = r.name === 'library' || r.name === 'item' || r.name === 'read' || r.name === 'edit';
   mount(
     root,
     banners(),
@@ -141,7 +152,7 @@ function render(): void {
         { class: 'tabs' },
         tab('#/', 'Library', inLibrary),
         tab('#/player', 'Player', r.name === 'player'),
-        tab('#/inbox', 'Inbox', r.name === 'inbox'),
+        tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive'),
         tab('#/account', 'Account', r.name === 'account'),
       ),
     ),
