@@ -1,6 +1,6 @@
 # Phase 3 — Player, reading view and sync
 
-Status: **at the gate**: built, tested on the desktop, deployed 2026-10-08; waiting for Rob to test laptop → phone
+Status: **built, gate not yet tested**. Deployed 2026-10-08. Rob chose to move on to Phase 4 and test later; the gate steps are in `docs/TESTING.md`.
 
 ## Goal
 
