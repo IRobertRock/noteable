@@ -1,6 +1,6 @@
 # Phase 1 — Shell and sign-in
 
-Status: **at the gate** — deployed to https://irobertrock.github.io/noteable/ on 2026-10-06; waiting for Rob to test on the S23 Ultra and laptop
+Status: **at the gate (phone checks not yet run; Rob chose to continue to Phase 2 on 2026-10-08)**, deployed to https://irobertrock.github.io/noteable/ on 2026-10-06; waiting for Rob to test on the S23 Ultra and laptop
 
 ## Goal
 
