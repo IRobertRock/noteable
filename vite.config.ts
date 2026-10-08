@@ -48,6 +48,8 @@ export default defineConfig({
         // The TTS engine is large and only needed when generating; it is cached on first use instead.
         globIgnores: ['spikes/**', 'assets/spike-*', 'assets/pipeline-*', 'assets/tts.worker-*', 'assets/*.wasm'],
         navigateFallback: `${base}index.html`,
+        // The test pages are real pages, not app routes.
+        navigateFallbackDenylist: [/\/spikes\//],
         runtimeCaching: [],
       },
     }),
