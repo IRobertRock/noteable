@@ -171,12 +171,11 @@ document.getElementById('run')!.addEventListener('click', async () => {
   p8.silences = sil.map((x) => [Math.round(x.start * 10) / 10, Math.round(x.end * 10) / 10]);
   p8.longestSkippable = Math.max(0, ...sil.map((x) => x.end - x.start));
 
-  const b = await storage.read(`Library/General/Sleep B/item.json`).then((x) => x.text()).then((t) => JSON.parse(t) as Item);
   await index.refresh();
   const entryA = index.byPath(itemPath)!;
   const entryB = index.byPath('Library/General/Sleep B')!;
   const player2 = new Player(new Downloads(storage), state, location.origin + '/noteable/pwa-512x512.png', (id) => index.byId(id));
-  await state.setUpNext([b.id]);
+  await state.setUpNext([b.item.id]); // b = the "Sleep B" import from the sleep-mode stage
   const lastA = entryA.item.chapters[entryA.item.chapters.length - 1];
   await player2.open(entryA, lastA.n, (lastA.durationSec ?? 2) - 1.2);
   await wait(4000);
