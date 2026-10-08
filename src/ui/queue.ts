@@ -4,21 +4,27 @@ import { itemHash, type App } from '../app';
 import { listJobs, removeJob, retryJob, type JobView } from '../queue/jobs';
 import { VOICES } from '../model/voices';
 import { fill, h } from './h';
+import { describeWorker, isOnline, readWorkerStatus } from '../queue/workerStatus';
 
 const REFRESH_MS = 20_000;
 
 export function queueScreen(app: App): HTMLElement {
   const body = h('div', null, h('p', { class: 'muted' }, 'Loading…'));
+  const workerLine = h('p', { class: 'muted small worker-line' });
   const screen = h(
     'section',
     { class: 'screen' },
     h('div', { class: 'title-row' }, h('h1', null, 'Desktop queue'), h('button', { class: 'small', onclick: () => void load() }, 'Refresh')),
     h('p', { class: 'muted small' }, 'Items sent with "Send to desktop". The worker on your PC checks every minute while it is running.'),
+    workerLine,
     body,
   );
 
   const load = async () => {
     try {
+      const w = await readWorkerStatus(app.storage);
+      workerLine.textContent = describeWorker(w) + (w?.realTimeFactor ? ` · last job ${w.realTimeFactor}× real time` : '');
+      workerLine.classList.toggle('online', isOnline(w));
       const jobs = await listJobs(app.storage);
       fill(
         body,

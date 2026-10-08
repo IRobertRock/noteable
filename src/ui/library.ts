@@ -5,6 +5,7 @@ import { itemHash, type App } from '../app';
 import type { IndexedItem } from '../library/libraryIndex';
 import { itemDuration, type Item } from '../model/item';
 import { listenedFraction } from '../player/player';
+import { continueListening } from '../library/continue';
 import { formatDuration } from './format';
 import { fill, h } from './h';
 
@@ -12,12 +13,35 @@ const REFRESH_MS = 120_000;
 
 export function libraryScreen(app: App): HTMLElement {
   const status = h('p', { class: 'muted small' });
+  const shelf = h('div');
   const body = h('div');
   const refreshBtn = h('button', { class: 'small', onclick: () => void refresh() }, 'Refresh');
-  const screen = h('section', { class: 'screen' }, h('div', { class: 'title-row' }, h('h1', null, 'Library'), refreshBtn), status, body);
+  const screen = h('section', { class: 'screen' }, h('div', { class: 'title-row' }, h('h1', null, 'Library'), refreshBtn), status, shelf, body);
 
   const render = () => {
     const items = app.library.items;
+    const resume = continueListening(items, app.state.playback);
+    fill(
+      shelf,
+      resume.length > 0 && [
+        h('h2', null, 'Continue listening'),
+        h(
+          'div',
+          { class: 'shelf' },
+          resume.map((x) => {
+            const pos = app.state.position(x.item.id)!;
+            const ch = x.item.chapters.find((c) => c.n === pos.chapter);
+            return h(
+              'button',
+              { class: 'shelf-card', onclick: () => void app.player.open(x).then(() => app.go('#/player')) },
+              h('div', { class: 'name' }, x.item.title),
+              h('div', { class: 'muted small' }, `${ch ? `Ch ${ch.n}` : ''} · ${Math.round(listenedFraction(x, pos.chapter, pos.positionSec) * 100)}%`),
+              h('span', { class: 'shelf-play' }, '▶ Resume'),
+            );
+          }),
+        ),
+      ],
+    );
     const byCollection = new Map<string, IndexedItem[]>();
     for (const c of app.library.collections) byCollection.set(c, []);
     for (const x of items) byCollection.set(x.item.collection, [...(byCollection.get(x.item.collection) ?? []), x]);

@@ -2,6 +2,9 @@ import type { App } from '../app';
 import { VOICES } from '../model/voices';
 import { readSettings, updateSettings } from '../settings';
 import { ZoteroClient } from '../zotero/client';
+import { logTail } from '../log';
+import { deviceName } from '../generate/jobs';
+import { LOG_REQUEST_PATH } from '../queue/logRequest';
 import { formatBytes } from './format';
 import { fill, h } from './h';
 
@@ -67,6 +70,73 @@ export function settingsSection(app: App): HTMLElement {
   };
   void renderZotero();
 
+  // Storage: downloaded items by size, with Remove.
+  const downloadsList = h('div');
+  const renderDownloads = () => {
+    const rows = Object.values(app.downloads.records)
+      .map((r) => ({ r, x: app.library.byId(r.itemId) }))
+      .sort((a, b) => b.r.bytes - a.r.bytes);
+    fill(
+      downloadsList,
+      rows.length
+        ? h(
+            'ul',
+            { class: 'status' },
+            rows.map(({ r, x }) =>
+              h(
+                'li',
+                null,
+                h('span', { class: 'grow' }, x?.item.title ?? 'Item no longer in the library'),
+                h('span', { class: 'muted small' }, formatBytes(r.bytes)),
+                h(
+                  'button',
+                  {
+                    class: 'small',
+                    onclick: async () => {
+                      if (x) await app.downloads.remove(x.item);
+                      else {
+                        const { [r.itemId]: _gone, ...rest } = app.downloads.records;
+                        app.downloads.records = rest;
+                      }
+                      renderDownloads();
+                    },
+                  },
+                  'Remove',
+                ),
+              ),
+            ),
+          )
+        : h('p', { class: 'muted small' }, 'Nothing downloaded on this device.'),
+    );
+  };
+  renderDownloads();
+
+  // Report a problem: write this device's recent log (and ask the desktop for its own) to Noteable/Logs.
+  const reportStatus = h('span', { class: 'muted small' });
+  const report = h('button', { class: 'small' }, 'Report a problem') as HTMLButtonElement;
+  report.addEventListener('click', async () => {
+    report.disabled = true;
+    reportStatus.textContent = 'Writing…';
+    try {
+      await app.reconnectNow();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const path = `Logs/${stamp}-${deviceName().replace(/\W+/g, '-').toLowerCase()}.md`;
+      const lines = await logTail();
+      const job = app.player.entry ? `\n## Now playing\n\n${app.player.entry.path}, chapter ${app.player.chapter}\n` : '';
+      await app.storage.write(
+        path,
+        `# Noteable problem report\n\n- Device: ${deviceName()}\n- App version: ${__APP_VERSION__}\n- Browser: ${navigator.userAgent}\n- Online: ${navigator.onLine}\n- Written: ${new Date().toISOString()}\n${job}\n## Recent log (${lines.length} lines)\n\n\`\`\`\n${lines.join('\n') || '(empty)'}\n\`\`\`\n`,
+        'text/markdown',
+      );
+      await app.storage.write(LOG_REQUEST_PATH, JSON.stringify({ requestedAt: new Date().toISOString() }), 'application/json');
+      reportStatus.textContent = `Saved to Noteable/${path}. The desktop adds its own log within a minute if it's running. Ask Claude in chat to read Noteable/Logs.`;
+    } catch (err) {
+      reportStatus.textContent = `Could not write the report: ${(err as Error).message}`;
+    } finally {
+      report.disabled = false;
+    }
+  });
+
   return h(
     'div',
     { class: 'settings' },
@@ -75,5 +145,9 @@ export function settingsSection(app: App): HTMLElement {
     zotero,
     h('h2', null, 'This device'),
     storageLine,
+    h('h2', null, 'Downloads'),
+    downloadsList,
+    h('h2', null, 'Help'),
+    h('div', { class: 'field' }, report, reportStatus),
   );
 }

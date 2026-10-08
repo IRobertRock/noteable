@@ -1,5 +1,6 @@
 import './style.css';
 import { registerSW } from 'virtual:pwa-register';
+import { installErrorLogging, logLine } from './log';
 import type { App } from './app';
 import { GoogleAuth, NeedsTapError } from './auth/google';
 import { ROOT_FOLDER } from './config';
@@ -38,7 +39,8 @@ const storage = new DriveStorage({
 const state = new StateStore(storage, deviceName());
 const library = new LibraryIndex(storage);
 const downloads = new Downloads(storage);
-const player = new Player(downloads, state, new URL(`${import.meta.env.BASE_URL}pwa-512x512.png`, location.href).href);
+const player = new Player(downloads, state, new URL(`${import.meta.env.BASE_URL}pwa-512x512.png`, location.href).href, (id) => library.byId(id));
+installErrorLogging();
 
 let leaveFns: (() => void)[] = [];
 
@@ -220,7 +222,8 @@ async function afterSignIn(): Promise<void> {
 /** Pull the latest library and playback state from Drive (and push local changes). */
 async function syncAll(): Promise<void> {
   if (!navigator.onLine || auth.state !== 'signed-in') return;
-  await Promise.allSettled([state.sync(), library.refresh()]);
+  const results = await Promise.allSettled([state.sync(), library.refresh()]);
+  for (const r of results) if (r.status === 'rejected') logLine('Sync with Drive failed', r.reason);
 }
 
 async function checkLayout(): Promise<void> {

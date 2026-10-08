@@ -7,6 +7,9 @@
 import type { IndexedItem } from '../library/libraryIndex';
 import type { Downloads } from '../offline/downloads';
 import { clampSpeed, type StateStore } from '../sync/state';
+import { kvGet, kvSet } from '../db';
+import { coverFor } from './artwork';
+import { silenceMap, skipTarget, SKIP_FROM_SPEED, type Silence } from './skipSilence';
 
 export const SKIP_SEC = 15;
 const SAVE_EVERY_MS = 10_000;
@@ -35,6 +38,9 @@ export class Player {
   loading = false;
   error?: string;
 
+  /** Shorten dead air at 1.25× and faster (Account/Player toggle; this device only). */
+  skipSilence = true;
+  private silences: { key: string; list: Silence[] } | null = null;
   private url: string | null = null;
   private preload: { n: number; blob: Promise<Blob> } | null = null;
   private lastSave = 0;
@@ -47,7 +53,12 @@ export class Player {
     private readonly downloads: Downloads,
     private readonly state: StateStore,
     private readonly artwork: string,
+    /** Finds a library item by id, for Up next. */
+    private readonly resolveItem: (id: string) => IndexedItem | undefined = () => undefined,
   ) {
+    void kvGet<boolean>('player.skipSilence').then((v) => {
+      if (v === false) this.skipSilence = false;
+    });
     this.audio = new Audio();
     this.audio.preload = 'auto';
     this.audio.addEventListener('timeupdate', () => this.onTime());
@@ -189,6 +200,7 @@ export class Player {
       if (position > 0) this.audio.currentTime = Math.min(position, Math.max(0, this.audio.duration - 0.5));
       this.loading = false;
       this.setMetadata();
+      this.mapSilences(entry, n, blob);
       if (autoplay) await this.audio.play();
       void this.save(false);
       this.startPreload();
@@ -216,13 +228,47 @@ export class Player {
   private async onEnded(): Promise<void> {
     if (this.nextPlayable() !== null) {
       await this.loadChapter(this.nextPlayable()!, 0, true);
-    } else {
-      await this.save(true);
-      this.emit();
+      return;
     }
+    await this.save(true);
+    // End of the item: carry on with Up next, if anything is queued.
+    for (let id = await this.state.popUpNext(); id; id = await this.state.popUpNext()) {
+      const next = this.resolveItem(id);
+      if (next && next.item.chapters.some((c) => c.status === 'done' && !c.excluded)) {
+        await this.open(next);
+        void this.state.sync().catch(() => {});
+        return;
+      }
+    }
+    this.emit();
+  }
+
+  setSkipSilence(on: boolean): void {
+    this.skipSilence = on;
+    void kvSet('player.skipSilence', on);
+    if (on && this.entry && this.url) void fetch(this.url).then((r) => r.blob()).then((b) => this.mapSilences(this.entry!, this.chapter, b));
+    this.emit();
+  }
+
+  /** Finds this chapter's silences in the background (only needed when skipping). */
+  private mapSilences(entry: IndexedItem, n: number, blob: Blob): void {
+    const key = `${entry.item.id}#${n}`;
+    if (!this.skipSilence || this.silences?.key === key) return;
+    this.silences = null;
+    const dur = entry.item.chapters.find((c) => c.n === n)?.durationSec ?? 0;
+    if (dur > 45 * 60) return; // keep phone memory in check on very long chapters
+    silenceMap(blob)
+      .then((list) => {
+        if (this.entry?.item.id === entry.item.id && this.chapter === n) this.silences = { key, list };
+      })
+      .catch(() => {});
   }
 
   private onTime(): void {
+    if (this.skipSilence && this.silences && this.speed >= SKIP_FROM_SPEED && !this.audio.paused) {
+      const to = skipTarget(this.silences.list, this.audio.currentTime);
+      if (to !== null) this.audio.currentTime = to;
+    }
     const now = Date.now();
     if (!this.audio.paused && now - this.lastSave > SAVE_EVERY_MS) {
       const push = now - this.lastSync > SYNC_EVERY_MS;
@@ -277,11 +323,12 @@ export class Player {
   private setMetadata(): void {
     if (!('mediaSession' in navigator) || !this.entry) return;
     const ch = this.chapterInfo();
+    // Short titles read better on lock screens and car displays.
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: ch ? `${ch.n}. ${ch.title}` : this.entry.item.title,
+      title: ch ? `Ch ${ch.n} · ${ch.title}` : this.entry.item.title,
       artist: this.entry.item.title,
       album: this.entry.item.collection,
-      artwork: [{ src: this.artwork, sizes: '512x512', type: 'image/png' }],
+      artwork: [{ src: coverFor(this.entry.item.collection, this.artwork), sizes: '512x512', type: 'image/png' }],
     });
     this.updatePositionState(true);
   }

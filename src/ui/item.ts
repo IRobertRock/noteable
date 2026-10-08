@@ -4,6 +4,10 @@ import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, w
 import { enterSleepMode } from '../sleep/sleepScreen';
 import { activeJobFor, listJobs, sendToDesktop, type JobView } from '../queue/jobs';
 import { applyGuide, dismissGuide, newGuide } from '../import/guideInItem';
+import { chapterProgress } from '../library/continue';
+import { describeWorker, isOnline, readWorkerStatus, type WorkerStatus } from '../queue/workerStatus';
+import { readSettings } from '../settings';
+import { logLine } from '../log';
 import type { Entry } from '../storage/Storage';
 import { detail as jobDetail } from './queue';
 import type { IndexedItem } from '../library/libraryIndex';
@@ -25,6 +29,8 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
   let est: Estimate | null = null;
   let desktopJob: JobView | undefined;
   let guide: Entry | null = null;
+  let worker: WorkerStatus | null = null;
+  let autoDesktopSec = 30 * 60;
 
   const refresh = async () => {
     try {
@@ -39,6 +45,11 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       if (entry) est = await estimate(entry.item);
       if (navigator.onLine) desktopJob = activeJobFor(await listJobs(app.storage).catch(() => []), itemPath);
       if (navigator.onLine && entry) guide = await newGuide(app.storage, itemPath, entry.item).catch(() => null);
+      if (navigator.onLine) {
+        worker = await readWorkerStatus(app.storage);
+        const minutes = Number((await readSettings(app.storage)).autoDesktopOverMin);
+        if (minutes > 0) autoDesktopSec = minutes * 60;
+      }
       render();
     } catch (err) {
       if (entry) render();
@@ -140,6 +151,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
           ),
           h('button', { onclick: () => app.go(readHash(itemPath)) }, 'Read'),
         ),
+      done > 0 && !playingThis && upNextButtons(item.id),
       done > 0 &&
         h(
           'div',
@@ -181,7 +193,13 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
             'li',
             { class: isCurrent ? 'current' : undefined },
             c.status === 'done'
-              ? h('button', { class: 'link-button', onclick: () => void app.player.open(entry!, c.n, 0) }, c.title)
+              ? h(
+                  'button',
+                  { class: 'link-button', onclick: () => void app.player.open(entry!, c.n, 0) },
+                  h('span', { class: `heard ${chapterProgress(pos, c)}`, 'aria-label': { done: 'Listened', part: 'Part listened', none: 'Not listened' }[chapterProgress(pos, c)] }, { done: '✓', part: '◐', none: '○' }[chapterProgress(pos, c)]),
+                  ' ',
+                  c.title,
+                )
               : h('span', null, c.title),
             h(
               'span',
@@ -196,7 +214,41 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
 
       item.lastGenerated &&
         h('p', { class: 'muted small' }, `Generated on ${item.lastGenerated.device} (${item.lastGenerated.engine === 'webgpu' ? 'GPU' : 'CPU'}) at ${item.lastGenerated.realTimeFactor}× real time.`),
+      !mine?.running && !desktopJob && h('button', { class: 'link-button small danger', onclick: () => void deleteItem() }, 'Delete item…'),
     );
+  };
+
+  const upNextButtons = (id: string) => {
+    const queued = app.state.upNext.items.includes(id);
+    const sync = () => void app.state.sync().catch(() => {});
+    return h(
+      'div',
+      { class: 'buttons' },
+      h('button', { class: 'small', onclick: async () => (await app.state.setUpNext([id, ...app.state.upNext.items.filter((x) => x !== id)]), sync()) }, '⏭ Play next'),
+      queued
+        ? h('button', { class: 'small', onclick: async () => (await app.state.setUpNext(app.state.upNext.items.filter((x) => x !== id)), sync()) }, '✓ In Up next · Remove')
+        : h('button', { class: 'small', onclick: async () => (await app.state.setUpNext([...app.state.upNext.items, id]), sync()) }, '＋ Add to Up next'),
+    );
+  };
+
+  const deleteItem = async () => {
+    if (!entry) return;
+    const { item } = entry;
+    if (!confirm(`Delete "${item.title}"? It goes to your Google Drive trash (recoverable for 30 days), and is removed from this device.`)) return;
+    try {
+      await app.reconnectNow();
+      if (app.player.entry?.item.id === item.id) app.player.pause();
+      await app.storage.delete(itemPath);
+      await app.downloads.remove(item);
+      await app.state.forgetItem(item.id);
+      await app.library.remove(item.id);
+      void app.state.sync().catch(() => {});
+      logLine(`Deleted item ${itemPath}`);
+      app.go('#/');
+    } catch (err) {
+      message = `Could not delete: ${(err as Error).message}`;
+      render();
+    }
   };
 
   const generateSection = (item: Item, mine: JobState | null, done: number) => {
@@ -209,6 +261,8 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
     );
     const label = done === item.chapters.length ? 'Generate again' : started && voice === item.voice ? 'Resume generating' : 'Generate';
     const long = !!est && est.audioSec > LONG_JOB_SEC;
+    // Long jobs go to the desktop by default when it's online.
+    const preferDesktop = !!est && est.audioSec > autoDesktopSec && isOnline(worker);
     const estimateLine =
       est && !mine?.running
         ? `${aboutMinutes(est.audioSec)} of audio. ` +
@@ -247,7 +301,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
             h(
               'button',
               {
-                class: done === 0 ? 'primary' : undefined,
+                class: done === 0 && !preferDesktop ? 'primary' : undefined,
                 disabled: busyElsewhere || !navigator.onLine,
                 onclick: async () => {
                   // Uploads happen as chapters finish; keep sign-in alive for the whole job if we can.
@@ -260,7 +314,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
             h(
               'button',
               {
-                class: long && done === 0 ? 'primary' : undefined,
+                class: preferDesktop || (long && done === 0) ? 'primary' : undefined,
                 disabled: !navigator.onLine,
                 onclick: async () => {
                   message = undefined;
@@ -273,9 +327,10 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
                   await refresh();
                 },
               },
-              '🖥 Send to desktop',
+              preferDesktop ? '🖥 Send to desktop (recommended)' : '🖥 Send to desktop',
             ),
           ),
+      !desktopJob && !mine?.running && h('p', { class: `muted small worker-line ${isOnline(worker) ? 'online' : ''}` }, describeWorker(worker)),
       busyElsewhere && h('p', { class: 'muted small' }, 'Another item is generating on this device.'),
       mine && progressPanel(mine),
       waiting > 0 &&

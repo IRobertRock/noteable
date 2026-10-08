@@ -176,3 +176,28 @@ describe('queue actions in the app', async () => {
     expect((await listJobs(storage, later))[0].stalled).toBe(true);
   });
 });
+
+describe('worker status and log requests', async () => {
+  const { writeStatus, answerLogRequest } = await import('../worker/status');
+  const { readWorkerStatus, isOnline } = await import('../src/queue/workerStatus');
+  const { LOG_REQUEST_PATH } = await import('../src/queue/logRequest');
+
+  it('writes State/worker.json that the app reads as online', async () => {
+    const { storage } = await setup();
+    const w = worker(storage, 'desktop', engine());
+    await writeStatus(storage, 'desktop', w, true);
+    const s = await readWorkerStatus(storage);
+    expect(s?.name).toBe('desktop');
+    expect(isOnline(s)).toBe(true);
+  });
+
+  it('answers a log request once, then removes it', async () => {
+    const { drive, storage } = await setup();
+    expect(await answerLogRequest(storage, 'desktop')).toBe(false);
+    await storage.write(LOG_REQUEST_PATH, '{}');
+    expect(await answerLogRequest(storage, 'desktop')).toBe(true);
+    expect(drive.find('Noteable/Logs/request-worker.json')).toHaveLength(0);
+    const logs = (await storage.list('Logs')).filter((e) => e.name.endsWith('-worker.md'));
+    expect(logs).toHaveLength(1);
+  });
+});

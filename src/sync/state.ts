@@ -15,6 +15,15 @@ export interface PlaybackEntry {
   speed: number;
   updatedAt: string;
   device: string;
+  /** Furthest point reached in each chapter (chapter number → seconds), for per-chapter progress. */
+  heard?: Record<string, number>;
+}
+
+/** Items lined up to play after the current one (item ids), synced as State/upnext.json. */
+export interface UpNextDoc {
+  version: 1;
+  items: string[];
+  updatedAt: string;
 }
 
 export interface PlaybackDoc {
@@ -49,9 +58,27 @@ export function mergePlayback(a: PlaybackDoc, b: PlaybackDoc): PlaybackDoc {
   const items: Record<string, PlaybackEntry> = { ...a.items };
   for (const [id, entry] of Object.entries(b.items ?? {})) {
     const mine = items[id];
-    if (!mine || entry.updatedAt > mine.updatedAt) items[id] = entry;
+    if (!mine) {
+      items[id] = entry;
+      continue;
+    }
+    // Latest position wins; "furthest heard" per chapter is the max from both devices.
+    const winner = entry.updatedAt > mine.updatedAt ? entry : mine;
+    const heard = mergeHeard(mine.heard, entry.heard);
+    items[id] = heard ? { ...winner, heard } : winner;
   }
   return { version: 1, items };
+}
+
+function mergeHeard(a?: Record<string, number>, b?: Record<string, number>): Record<string, number> | undefined {
+  if (!a && !b) return undefined;
+  const out: Record<string, number> = { ...a };
+  for (const [k, v] of Object.entries(b ?? {})) out[k] = Math.max(out[k] ?? 0, v);
+  return out;
+}
+
+export function mergeUpNext(a: UpNextDoc, b: UpNextDoc): UpNextDoc {
+  return (b.updatedAt ?? '') > (a.updatedAt ?? '') ? b : a;
 }
 
 export function mergeBookmarks(a: BookmarkDoc, b: BookmarkDoc): BookmarkDoc {
@@ -72,6 +99,7 @@ interface Synced<T> {
   merge: (a: T, b: T) => T;
 }
 
+const UPNEXT: Synced<UpNextDoc> = { path: 'State/upnext.json', key: 'state.upnext', empty: { version: 1, items: [], updatedAt: '' }, merge: mergeUpNext };
 const PLAYBACK: Synced<PlaybackDoc> = { path: 'State/playback.json', key: 'state.playback', empty: { version: 1, items: {} }, merge: mergePlayback };
 const BOOKMARKS: Synced<BookmarkDoc> = { path: 'State/bookmarks.json', key: 'state.bookmarks', empty: { version: 1, bookmarks: [] }, merge: mergeBookmarks };
 
@@ -87,6 +115,7 @@ type Listener = () => void;
 export class StateStore {
   playback: PlaybackDoc = PLAYBACK.empty;
   bookmarks: BookmarkDoc = BOOKMARKS.empty;
+  upNext: UpNextDoc = UPNEXT.empty;
   private readonly listeners = new Set<Listener>();
   private syncing: Promise<void> | null = null;
 
@@ -100,6 +129,7 @@ export class StateStore {
   async load(): Promise<void> {
     this.playback = (await this.kv.get<PlaybackDoc>(PLAYBACK.key)) ?? PLAYBACK.empty;
     this.bookmarks = (await this.kv.get<BookmarkDoc>(BOOKMARKS.key)) ?? BOOKMARKS.empty;
+    this.upNext = (await this.kv.get<UpNextDoc>(UPNEXT.key)) ?? UPNEXT.empty;
     this.emit();
   }
 
@@ -113,16 +143,40 @@ export class StateStore {
   }
 
   async savePosition(itemId: string, p: Pick<PlaybackEntry, 'chapter' | 'positionSec' | 'speed'>): Promise<void> {
+    const positionSec = Math.max(0, Math.round(p.positionSec * 10) / 10);
+    const prev = this.playback.items[itemId];
+    const heard = { ...prev?.heard, [p.chapter]: Math.max(prev?.heard?.[p.chapter] ?? 0, positionSec) };
     const entry: PlaybackEntry = {
       chapter: p.chapter,
-      positionSec: Math.max(0, Math.round(p.positionSec * 10) / 10),
+      positionSec,
       speed: clampSpeed(p.speed),
       updatedAt: this.now().toISOString(),
       device: this.deviceName,
+      heard,
     };
     this.playback = { version: 1, items: { ...this.playback.items, [itemId]: entry } };
     await this.kv.set(PLAYBACK.key, this.playback);
     this.emit();
+  }
+
+  /** Replaces the Up next list (item ids, in play order). */
+  async setUpNext(items: string[]): Promise<void> {
+    this.upNext = { version: 1, items: [...new Set(items)], updatedAt: this.now().toISOString() };
+    await this.kv.set(UPNEXT.key, this.upNext);
+    this.emit();
+  }
+
+  /** Takes the first item off Up next and returns it. */
+  async popUpNext(): Promise<string | undefined> {
+    const [first, ...rest] = this.upNext.items;
+    if (first) await this.setUpNext(rest);
+    return first;
+  }
+
+  /** After an item is deleted: drop it from Up next and its bookmarks. */
+  async forgetItem(itemId: string): Promise<void> {
+    if (this.upNext.items.includes(itemId)) await this.setUpNext(this.upNext.items.filter((i) => i !== itemId));
+    for (const b of this.bookmarksFor(itemId)) await this.deleteBookmark(b.id);
   }
 
   bookmarksFor(itemId: string): Bookmark[] {
@@ -152,6 +206,7 @@ export class StateStore {
       try {
         this.playback = await this.syncDoc(PLAYBACK, this.playback);
         this.bookmarks = await this.syncDoc(BOOKMARKS, this.bookmarks);
+        this.upNext = await this.syncDoc(UPNEXT, this.upNext);
         this.emit();
       } finally {
         this.syncing = null;

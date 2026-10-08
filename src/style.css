@@ -221,3 +221,16 @@ input[type=text] { font: inherit; color: var(--text); background: var(--bg); bor
 .prose .hidden-answer::after { content: 'Tap to show answer'; position: absolute; left: 10px; top: 0; color: var(--ok); text-shadow: none; font-size: 0.9rem; font-weight: 600; }
 
 .banner.column { flex-direction: column; align-items: stretch; }
+
+/* ---- phase 8: continue listening, up next, status ---- */
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.shelf-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 12px; border-radius: 12px; background: var(--surface); }
+.shelf-card .name { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.shelf-play { margin-top: 4px; color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+.heard { display: inline-block; width: 1.1em; text-align: center; }
+.heard.done { color: var(--ok); }
+.heard.part { color: var(--accent); }
+.heard.none { color: var(--muted); }
+.worker-line::before { content: '● '; color: var(--muted); }
+.worker-line.online::before { color: var(--ok); }
+.danger { color: var(--bad) !important; }

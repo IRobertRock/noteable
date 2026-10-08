@@ -95,6 +95,12 @@ export function playerScreen(app: App): HTMLElement {
         SPEEDS.map((sp) => h('button', { class: sp === s.speed ? 'active small' : 'small', onclick: () => app.player.setSpeed(sp) }, `${sp}×`)),
       ),
       h(
+        'label',
+        { class: 'check small' },
+        h('input', { type: 'checkbox', checked: app.player.skipSilence, onchange: (e: Event) => app.player.setSkipSilence((e.target as HTMLInputElement).checked) }),
+        ` Skip silence at 1.25× and faster${s.speed >= 1.25 ? '' : ' (not active at this speed)'}`,
+      ),
+      h(
         'div',
         { class: 'buttons' },
         h(
@@ -113,6 +119,7 @@ export function playerScreen(app: App): HTMLElement {
       ),
       h('h2', null, 'Bookmarks'),
       marks.length ? bookmarkList(app, marks, item.chapters, noteFor, () => (noteFor = null)) : h('p', { class: 'muted small' }, 'None yet. Tap Bookmark to save this spot.'),
+      upNextList(app),
     );
   };
 
@@ -121,6 +128,36 @@ export function playerScreen(app: App): HTMLElement {
   // Bookmark changes redraw, unless a note is being typed.
   app.onLeave(app.state.onChange(() => !screen.contains(document.activeElement) && render(app.player.snapshot)));
   return screen;
+}
+
+/** Items queued to play after this one. */
+function upNextList(app: App): HTMLElement {
+  const ids = app.state.upNext.items;
+  const save = async (next: string[]) => {
+    await app.state.setUpNext(next);
+    void app.state.sync().catch(() => {});
+  };
+  return h(
+    'div',
+    null,
+    h('h2', null, 'Up next'),
+    ids.length
+      ? h(
+          'ol',
+          { class: 'status' },
+          ids.map((id, i) => {
+            const x = app.library.byId(id);
+            return h(
+              'li',
+              null,
+              h('span', { class: 'grow' }, x ? x.item.title : '(item not in this library)'),
+              h('button', { class: 'small', 'aria-label': 'Move up', disabled: i === 0, onclick: () => void save(ids.map((v, j) => (j === i - 1 ? id : j === i ? ids[i - 1] : v))) }, '↑'),
+              h('button', { class: 'small', 'aria-label': 'Remove from Up next', onclick: () => void save(ids.filter((v) => v !== id)) }, '✕'),
+            );
+          }),
+        )
+      : h('p', { class: 'muted small' }, 'Nothing queued. On an item, tap "Add to Up next" to keep listening when this one ends.'),
+  );
 }
 
 export function bookmarkList(

@@ -27,6 +27,8 @@ export class QueueWorker {
   paused = false;
   /** The last failure, shown in the tray menu until the next success. */
   lastError?: string;
+  /** Speed of the last finished job, for State/worker.json. */
+  lastRealTimeFactor?: number;
   onState?: (s: WorkerState) => void;
   private running = false;
 
@@ -123,6 +125,7 @@ export class QueueWorker {
       await storage.complete(job.id, { status: 'done' });
       this.d.log?.(`Done: ${job.itemPath} at ${result.realTimeFactor.toFixed(1)}× real time`);
       this.lastError = undefined;
+      this.lastRealTimeFactor = Math.round(result.realTimeFactor * 10) / 10;
       this.set({ kind: 'idle' });
     } catch (err) {
       clearInterval(timer);

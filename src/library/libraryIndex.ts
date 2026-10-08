@@ -92,6 +92,12 @@ export class LibraryIndex {
     return this.refreshing;
   }
 
+  async remove(id: string): Promise<void> {
+    this.items = this.items.filter((x) => x.item.id !== id);
+    await this.store.replace(this.items);
+    this.emit();
+  }
+
   /** Updates one item after this device changes it (import, generate), without a full scan. */
   async put(entry: IndexedItem): Promise<void> {
     this.items = [...this.items.filter((x) => x.item.id !== entry.item.id), entry];

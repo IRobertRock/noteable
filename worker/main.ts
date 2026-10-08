@@ -10,6 +10,7 @@ import { CHECKPOINT_DIR, HEARTBEAT_MS, LOCK_FILE, LOG_FILE, PENDING_DIR, POLL_MS
 import { NodeKokoroEngine } from './engine';
 import { log } from './log';
 import { QueueWorker } from './queue';
+import { answerLogRequest, writeStatus } from './status';
 import { fileCheckpoints, filePending } from './stores';
 import { Tray } from './tray';
 
@@ -52,7 +53,6 @@ async function main(): Promise<void> {
 
   let tray: Tray | null = null;
   const refreshTray = () => tray?.show(auth.signedIn ? worker.state : { kind: 'signed-out' }, worker.paused, worker.lastError);
-  worker.onState = refreshTray;
   auth.onChange = refreshTray;
 
   const signIn = () =>
@@ -61,6 +61,14 @@ async function main(): Promise<void> {
       (err) => log('Sign-in did not complete', err),
     );
 
+  // Tell the app we're here: every minute on its own timer, so it stays fresh during long jobs.
+  const beat = () => (auth.signedIn ? writeStatus(storage, cfg.workerName, worker, true).catch((err) => log('Could not write worker status', err)) : Promise.resolve());
+  const statusTimer = setInterval(() => void beat(), POLL_MS);
+  worker.onState = (s) => {
+    refreshTray();
+    if (s.kind !== 'working') void beat();
+  };
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const tick = async () => {
     clearTimeout(timer);
@@ -68,6 +76,8 @@ async function main(): Promise<void> {
       if (!auth.signedIn) {
         refreshTray();
       } else {
+        await beat();
+        if (await answerLogRequest(storage, cfg.workerName).catch(() => false)) log('Wrote the log to Noteable/Logs for the app.');
         // Keep going while there is work; otherwise wait a minute.
         while ((await worker.tick()) && !worker.paused) {
           /* next job straight away */
@@ -87,6 +97,7 @@ async function main(): Promise<void> {
   const quit = async () => {
     log('Quitting.');
     clearTimeout(timer);
+    clearInterval(statusTimer);
     await tray?.kill().catch(() => {});
     process.exit(0);
   };

@@ -161,5 +161,30 @@ document.getElementById('run')!.addEventListener('click', async () => {
   await jobB;
   log(`  ${JSON.stringify(sleep)}`);
 
-  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks, sleep };
+  // ---- Phase 8: skip silence + Up next ----
+  log('Phase 8 check…');
+  const p8: Record<string, unknown> = {};
+  const { silenceMap } = await import('../src/player/skipSilence');
+  // The review chapter (3) has a 3 s pause before its answer plus the automatic 5 s; neither may be skipped.
+  const ch3 = await storage.read(`${itemPath}/${item.chapters[2].audioFile}`);
+  const sil = await silenceMap(new Blob([await ch3.arrayBuffer()], { type: 'audio/mpeg' }));
+  p8.silences = sil.map((x) => [Math.round(x.start * 10) / 10, Math.round(x.end * 10) / 10]);
+  p8.longestSkippable = Math.max(0, ...sil.map((x) => x.end - x.start));
+
+  const b = await storage.read(`Library/General/Sleep B/item.json`).then((x) => x.text()).then((t) => JSON.parse(t) as Item);
+  await index.refresh();
+  const entryA = index.byPath(itemPath)!;
+  const entryB = index.byPath('Library/General/Sleep B')!;
+  const player2 = new Player(new Downloads(storage), state, location.origin + '/noteable/pwa-512x512.png', (id) => index.byId(id));
+  await state.setUpNext([b.id]);
+  const lastA = entryA.item.chapters[entryA.item.chapters.length - 1];
+  await player2.open(entryA, lastA.n, (lastA.durationSec ?? 2) - 1.2);
+  await wait(4000);
+  p8.upNextStarted = player2.entry?.item.id === entryB.item.id;
+  p8.playingB = !player2.audio.paused;
+  p8.upNextEmptied = state.upNext.items.length === 0;
+  player2.pause();
+  log(`  ${JSON.stringify(p8)}`);
+
+  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks, sleep, p8 };
 });
