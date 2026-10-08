@@ -2,6 +2,8 @@ import { editHash, readHash, type App } from '../app';
 import { aboutMinutes, estimate, LONG_JOB_SEC, type Estimate } from '../generate/estimate';
 import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
 import { enterSleepMode } from '../sleep/sleepScreen';
+import { activeJobFor, listJobs, sendToDesktop, type JobView } from '../queue/jobs';
+import { detail as jobDetail } from './queue';
 import type { IndexedItem } from '../library/libraryIndex';
 import { ITEM_FILE, itemDuration, type Item } from '../model/item';
 import { VOICES } from '../model/voices';
@@ -19,6 +21,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
   let showGenerate = false;
   let message: string | undefined;
   let est: Estimate | null = null;
+  let desktopJob: JobView | undefined;
 
   const refresh = async () => {
     try {
@@ -31,6 +34,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       }
       voice ||= entry?.item.voice ?? '';
       if (entry) est = await estimate(entry.item);
+      if (navigator.onLine) desktopJob = activeJobFor(await listJobs(app.storage).catch(() => []), itemPath);
       render();
     } catch (err) {
       if (entry) render();
@@ -171,8 +175,19 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       h('label', { class: 'field' }, h('span', null, 'Voice'), select),
       voice !== item.voice && started && h('p', { class: 'muted small' }, 'Changing the voice regenerates every chapter.'),
       estimateLine && h('p', { class: 'muted small' }, estimateLine),
-      long && !mine?.running && h('p', { class: 'banner' }, 'This is a long job (over 45 minutes of audio). The phone may get warm; plug it in. Send to desktop (phase 6) will be the better choice for jobs this size.'),
-      mine?.running
+      long && !mine?.running && !desktopJob && h('p', { class: 'banner' }, 'This is a long job (over 45 minutes of audio). The phone may get warm; Send to desktop is the better choice for jobs this size.'),
+      desktopJob &&
+        h(
+          'div',
+          { class: 'progress' },
+          h('strong', null, desktopJob.stalled ? 'Desktop: stalled' : desktopJob.status === 'working' ? 'Desktop is generating this' : 'Queued on the desktop'),
+          h('div', null, jobDetail(desktopJob)),
+          desktopJob.progress && h('progress', { max: desktopJob.progress.chaptersTotal, value: desktopJob.progress.chaptersDone }),
+          h('a', { href: '#/queue' }, 'Open the desktop queue'),
+        ),
+      desktopJob
+        ? false
+        : mine?.running
         ? h(
             'div',
             { class: 'buttons' },
@@ -195,7 +210,24 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
               },
               `${label} on this device`,
             ),
-            h('button', { disabled: true, title: 'Arrives in phase 6' }, 'Send to desktop'),
+            h(
+              'button',
+              {
+                class: long && done === 0 ? 'primary' : undefined,
+                disabled: !navigator.onLine,
+                onclick: async () => {
+                  message = undefined;
+                  try {
+                    await app.reconnectNow();
+                    await sendToDesktop(app.storage, itemPath, item, voice);
+                  } catch (err) {
+                    message = (err as Error).message;
+                  }
+                  await refresh();
+                },
+              },
+              '🖥 Send to desktop',
+            ),
           ),
       busyElsewhere && h('p', { class: 'muted small' }, 'Another item is generating on this device.'),
       mine && progressPanel(mine),
@@ -251,6 +283,10 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       }
     }),
   );
+
+  // While the desktop works on this item, check on it every 30 s.
+  const poll = setInterval(() => desktopJob && document.visibilityState === 'visible' && void refresh(), 30_000);
+  app.onLeave(() => clearInterval(poll));
 
   if (entry) render();
   void refresh();

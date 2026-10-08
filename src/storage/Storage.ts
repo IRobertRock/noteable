@@ -32,6 +32,8 @@ export interface Job {
   claimedBy?: string;
   /** Last time the worker reported progress (ISO). */
   heartbeat?: string;
+  /** Set by the worker while working, for the app's Queue screen. */
+  progress?: { chapter?: number; chaptersDone: number; chaptersTotal: number; realTimeFactor?: number };
   error?: string;
 }
 

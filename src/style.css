@@ -95,8 +95,8 @@ nav.tabs {
   padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
 }
 nav.tabs a {
-  flex: 1; max-width: 180px; text-align: center; padding: 10px; border-radius: 10px;
-  color: var(--muted); text-decoration: none; font-weight: 600;
+  flex: 1; max-width: 160px; min-width: 0; text-align: center; padding: 10px 2px; border-radius: 10px;
+  color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem;
 }
 nav.tabs a.active { color: var(--text); background: var(--surface); }
 

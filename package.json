@@ -8,16 +8,20 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
     "check:drive-boundary": "node scripts/check-drive-boundary.mjs",
-    "icons": "pwa-assets-generator"
+    "icons": "pwa-assets-generator",
+    "worker": "tsx worker/main.ts",
+    "icons:tray": "node scripts/make-tray-icons.mjs"
   },
   "devDependencies": {
+    "@types/node": "24.19.1",
     "@vite-pwa/assets-generator": "2.0.0",
     "fake-indexeddb": "6.2.5",
     "happy-dom": "20.14.5",
     "jsdom": "30.1.2",
     "pdf-lib": "1.17.1",
+    "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.3",
     "vite-plugin-pwa": "2.0.0",
@@ -32,6 +36,7 @@
     "mammoth": "1.13.0",
     "marked": "18.1.0",
     "pdfjs-dist": "6.4.299",
+    "systray2": "2.1.4",
     "tesseract.js": "7.0.0",
     "wasm-media-encoders": "0.7.0",
     "yaml": "2.9.1"

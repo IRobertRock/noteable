@@ -6,3 +6,5 @@ coverage
 .env.*
 !.env.example
 *.log
+worker/spike-*.mp3
+worker/.env

@@ -17,6 +17,7 @@ import { h, mount } from './ui/h';
 import { driveBrowserScreen } from './ui/driveBrowser';
 import { editScreen } from './ui/edit';
 import { inboxScreen } from './ui/inbox';
+import { queueScreen } from './ui/queue';
 import { itemScreen } from './ui/item';
 import { libraryScreen } from './ui/library';
 import { miniPlayer, playerScreen } from './ui/player';
@@ -66,6 +67,7 @@ type Route =
   | { name: 'inbox' }
   | { name: 'account' }
   | { name: 'player' }
+  | { name: 'queue' }
   | { name: 'item'; path: string }
   | { name: 'read'; path: string }
   | { name: 'edit'; path: string }
@@ -80,6 +82,7 @@ function route(): Route {
   if (hash === 'inbox') return { name: 'inbox' };
   if (hash === 'account') return { name: 'account' };
   if (hash === 'player') return { name: 'player' };
+  if (hash === 'queue') return { name: 'queue' };
   return { name: 'library' };
 }
 
@@ -107,6 +110,9 @@ function render(): void {
   switch (r.name) {
     case 'inbox':
       screen = inboxScreen(app);
+      break;
+    case 'queue':
+      screen = queueScreen(app);
       break;
     case 'drive':
       screen = driveBrowserScreen(app, r.folderId);
@@ -153,6 +159,7 @@ function render(): void {
         tab('#/', 'Library', inLibrary),
         tab('#/player', 'Player', r.name === 'player'),
         tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive'),
+        tab('#/queue', 'Queue', r.name === 'queue'),
         tab('#/account', 'Account', r.name === 'account'),
       ),
     ),
