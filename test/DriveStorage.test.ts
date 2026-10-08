@@ -30,6 +30,15 @@ describe('DriveStorage', () => {
     expect(await readText(makeStorage(drive).storage, 'State/a.json')).toBe('{"v":2}');
   });
 
+  it('round-trips binary content byte for byte', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    const data = Uint8Array.from({ length: 256 }, (_, i) => i);
+    await storage.write('Library/General/Item/audio/01.mp3', new Blob([data]), 'audio/mpeg');
+    const back = new Uint8Array(await (await storage.read('Library/General/Item/audio/01.mp3')).arrayBuffer());
+    expect([...back]).toEqual([...data]);
+  });
+
   it('lists a folder with paths relative to the root', async () => {
     const drive = new FakeDrive();
     const { storage } = makeStorage(drive);

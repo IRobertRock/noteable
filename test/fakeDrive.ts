@@ -4,6 +4,20 @@ import { DriveStorage, type DriveStorageOptions } from '../src/storage/DriveStor
 
 const FOLDER = 'application/vnd.google-apps.folder';
 
+// File content is kept as a "binary string" (one char per byte) so MP3s survive intact.
+async function bytes(b: Blob): Promise<string> {
+  const u = new Uint8Array(await b.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+  return s;
+}
+
+function toBytes(s: string): Uint8Array<ArrayBuffer> {
+  const u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return u;
+}
+
 export interface FakeFile {
   id: string;
   name: string;
@@ -83,7 +97,7 @@ export class FakeDrive {
     if (method === 'GET' && !id) return json(this.query(url.searchParams.get('q')!, url.searchParams.get('orderBy')));
     if (method === 'GET' && id && url.searchParams.get('alt') === 'media') {
       const f = this.files.get(id);
-      return f ? new Response(f.content) : json({}, 404);
+      return f ? new Response(toBytes(f.content)) : json({}, 404);
     }
     if (method === 'POST' && !upload) {
       const body = JSON.parse(String(init.body)) as { name: string; mimeType: string; parents: string[] };
@@ -92,14 +106,14 @@ export class FakeDrive {
     if (method === 'POST' && upload) {
       const form = init.body as FormData;
       const metadata = JSON.parse(await (form.get('metadata') as Blob).text()) as { name: string; parents: string[]; mimeType: string };
-      const content = await (form.get('file') as Blob).text();
+      const content = await bytes(form.get('file') as Blob);
       return json(meta(this.add(metadata.name, metadata.parents[0], metadata.mimeType, content)));
     }
     if (method === 'PATCH' && id) {
       const f = this.files.get(id);
       if (!f) return json({}, 404);
       if (upload) {
-        f.content = await (init.body as Blob).text();
+        f.content = await bytes(init.body as Blob);
       } else {
         const body = JSON.parse(String(init.body)) as { name?: string; trashed?: boolean };
         if (body.name) f.name = body.name;
@@ -125,7 +139,7 @@ export class FakeDrive {
     if (this.chunkPuts === this.dropChunk) throw new TypeError('Failed to fetch');
     const [, from] = range.match(/bytes (\d+)-/)!;
     if (Number(from) !== s.data.length) return json({ error: 'bad offset' }, 400);
-    s.data += await (init.body as Blob).text();
+    s.data += await bytes(init.body as Blob);
     if (s.data.length < s.size) return new Response(null, { status: 308, headers: { Range: `bytes=0-${s.data.length - 1}` } });
     this.sessions.delete(sid);
     if (s.fileId) {
