@@ -12,7 +12,7 @@ export interface Silence {
 
 export const MIN_SKIP_SEC = 0.7;
 /** Longer silences are intentional (review-question pauses); never skip them. */
-export const KEEP_OVER_SEC = 4;
+export const KEEP_OVER_SEC = 2.5; // [pause Ns] markers (2 s+) and answer pauses are intentional
 /** Leave this much of each silence so speech doesn't run together. */
 export const KEEP_SEC = 0.2;
 export const SKIP_FROM_SPEED = 1.25;
