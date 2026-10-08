@@ -49,6 +49,7 @@ const app: App = {
   go: (hash) => (location.hash = hash),
   onLeave: (fn) => leaveFns.push(fn),
   reconnectNow,
+  freshFor: (minutes) => auth.ensureFresh(Math.min(55, minutes) * 60_000).catch(() => {}),
   defaultVoice,
 };
 

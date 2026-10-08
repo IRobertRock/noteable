@@ -19,6 +19,8 @@ export interface App {
   onLeave(fn: () => void): void;
   /** For buttons that need Drive right now: reconnect first if sign-in has lapsed. */
   reconnectNow(): Promise<void>;
+  /** From a tap: make sure sign-in lasts at least this many more minutes (max ~55). */
+  freshFor(minutes: number): Promise<void>;
   defaultVoice(): Promise<string>;
 }
 

@@ -95,6 +95,16 @@ export class GoogleAuth {
     await this.requestToken(this.session ? '' : 'consent');
   }
 
+  /**
+   * Call from a tap: if the token would expire within `ms`, get a new one now
+   * (a brief sign-in flash) so a long job or listen doesn't stall later when
+   * no tap is possible. Tokens last about an hour, so longer needs can't be met.
+   */
+  async ensureFresh(ms: number): Promise<void> {
+    if (!this.session || this.session.expiresAt - Date.now() > ms) return;
+    await this.requestToken('');
+  }
+
   /** A valid access token, refreshing silently if the browser allows it. */
   getToken = async (): Promise<string> => {
     if (this.session && this.tokenValid()) return this.session.accessToken;

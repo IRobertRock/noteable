@@ -11,6 +11,10 @@ import { Downloads } from '../src/offline/downloads';
 import { Player } from '../src/player/player';
 import { StateStore } from '../src/sync/state';
 import { writeJson } from '../src/storage/Storage';
+import { startJob } from '../src/generate/jobs';
+import { enterSleepMode } from '../src/sleep/sleepScreen';
+import { wakeLockHeld } from '../src/sleep/wakeLock';
+import '../src/style.css';
 import { FakeDrive, makeStorage } from '../test/fakeDrive';
 
 const GUIDE = `---
@@ -116,5 +120,46 @@ document.getElementById('run')!.addEventListener('click', async () => {
   checks.savedToDrive = saved;
   log(`  ${JSON.stringify(checks)}`);
 
-  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks };
+  // ---- Sleep mode check (phase 4) ----
+  log('Sleep mode check…');
+  const sleep: Record<string, unknown> = {};
+  const press = (type: string, x = 120, y = 300) =>
+    document.querySelector('.sleep')?.dispatchEvent(new PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+  const overlayUp = () => !!document.querySelector('.sleep:not(.waking)');
+
+  // Job 1: finishes on its own → screen wakes.
+  await storage.write('Inbox/sleep-a.md', GUIDE.replace('title: Pipeline test', 'title: Sleep A'));
+  const a = await importMarkdown(storage, 'Inbox/sleep-a.md');
+  const jobA = startJob(storage, a.itemPath, a.item.voice, a.item, 15);
+  await wait(300);
+  enterSleepMode();
+  sleep.overlayShown = overlayUp();
+  sleep.wakeLockHeld = wakeLockHeld();
+  sleep.pageVisible = document.visibilityState;
+  press('pointerdown');
+  await wait(400);
+  press('pointerup');
+  sleep.shortTapIgnored = overlayUp();
+  await wait(1500);
+  sleep.label = document.querySelector('.sleep-label')?.textContent;
+  await jobA;
+  await wait(700);
+  sleep.wokeWhenDone = !overlayUp();
+  sleep.wakeLockReleased = !wakeLockHeld();
+
+  // Job 2: wake early with a 1.5 s hold; the job keeps running.
+  await storage.write('Inbox/sleep-b.md', GUIDE.replace('title: Pipeline test', 'title: Sleep B'));
+  const b = await importMarkdown(storage, 'Inbox/sleep-b.md');
+  const jobB = startJob(storage, b.itemPath, b.item.voice, b.item, 15);
+  await wait(300);
+  enterSleepMode();
+  press('pointerdown');
+  await wait(1700);
+  sleep.holdWakes = !overlayUp();
+  const { currentJob } = await import('../src/generate/jobs');
+  sleep.jobStillRunningAfterWake = !!currentJob()?.running;
+  await jobB;
+  log(`  ${JSON.stringify(sleep)}`);
+
+  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks, sleep };
 });

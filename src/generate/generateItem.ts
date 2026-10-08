@@ -2,14 +2,19 @@
 //
 // Progress survives interruptions: each finished chapter is saved on the device
 // first, then uploaded to audio/NN.mp3 and marked done in item.json. A restart
-// skips chapters that are done in Drive or waiting on the device.
+// skips chapters that are done in Drive or waiting on the device. Inside a
+// chapter, a checkpoint every ~30 s of audio means a killed page resumes
+// mid-chapter instead of starting the chapter again.
 
 import { chapterFile, ITEM_FILE, type Item } from '../model/item';
 import { readJson, readText, writeJson, type Storage } from '../storage/Storage';
 import type { CreateMp3Writer } from '../audio/mp3';
 import type { LoadProgress, TtsEngine } from '../tts/engine';
 import { speechPlan, spokenChars } from '../tts/speechText';
-import type { PendingStore } from './pending';
+import { hashText, type CheckpointStore, type PendingStore } from './pending';
+
+/** Save a mid-chapter checkpoint after this much new audio. */
+export const CHECKPOINT_EVERY_SEC = 30;
 
 export interface GenerateProgress {
   phase: 'loading-model' | 'generating' | 'uploading' | 'done' | 'waiting-upload';
@@ -31,6 +36,7 @@ export interface GenerateDeps {
   engine: TtsEngine;
   createWriter: CreateMp3Writer;
   pending: PendingStore;
+  checkpoints?: CheckpointStore;
   deviceName: string;
   signal?: AbortSignal;
   onProgress?: (p: GenerateProgress) => void;
@@ -45,7 +51,7 @@ export interface GenerateResult {
 }
 
 export async function generateItem(itemPath: string, voice: string, deps: GenerateDeps): Promise<GenerateResult> {
-  const { storage, engine, pending } = deps;
+  const { storage, engine, pending, checkpoints } = deps;
   const now = deps.now ?? (() => performance.now());
   const itemFile = `${itemPath}/${ITEM_FILE}`;
   let item = await readJson<Item>(storage, itemFile);
@@ -107,11 +113,18 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
       progress.chapterFraction = 0;
       report();
 
-      const plan = speechPlan(texts.get(ch.n) ?? '');
+      const text = texts.get(ch.n) ?? '';
+      const textHash = hashText(text);
+      const plan = speechPlan(text);
       const total = Math.max(1, spokenChars(plan));
-      let said = 0;
-      const writer = await deps.createWriter();
-      for (const step of plan) {
+      const saved = await checkpoints?.get(itemPath, ch.n);
+      const resume = saved && saved.voice === voice && saved.textHash === textHash ? saved : undefined;
+      let said = resume?.said ?? 0;
+      progress.chapterFraction = said / total;
+      const writer = await deps.createWriter(resume && { blob: resume.blob, samples: resume.samples });
+      let sinceCheckpoint = 0;
+      for (let i = resume?.step ?? 0; i < plan.length; i++) {
+        const step = plan[i];
         checkAbort(deps.signal);
         if ('pause' in step) {
           writer.silence(step.pause);
@@ -127,8 +140,14 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
         progress.elapsedSec = genMs / 1000;
         progress.realTimeFactor = genMs ? progress.audioSec / (genMs / 1000) : 0;
         report();
+        sinceCheckpoint += pcm.length / 24000;
+        if (checkpoints && sinceCheckpoint >= CHECKPOINT_EVERY_SEC && i < plan.length - 1) {
+          sinceCheckpoint = 0;
+          await checkpoints.put({ itemPath, n: ch.n, voice, textHash, step: i + 1, said, ...writer.checkpoint() });
+        }
       }
       await pending.put({ itemPath, n: ch.n, blob: writer.finish(), durationSec: writer.durationSec });
+      await checkpoints?.delete(itemPath, ch.n);
       progress.chaptersDone++;
       await flush();
     }

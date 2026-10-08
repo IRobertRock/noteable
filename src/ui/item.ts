@@ -1,5 +1,7 @@
 import { readHash, type App } from '../app';
-import { currentJob, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
+import { aboutMinutes, estimate, LONG_JOB_SEC, type Estimate } from '../generate/estimate';
+import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
+import { enterSleepMode } from '../sleep/sleepScreen';
 import type { IndexedItem } from '../library/libraryIndex';
 import { ITEM_FILE, itemDuration, type Item } from '../model/item';
 import { VOICES } from '../model/voices';
@@ -16,6 +18,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
   let voice = entry?.item.voice ?? '';
   let showGenerate = false;
   let message: string | undefined;
+  let est: Estimate | null = null;
 
   const refresh = async () => {
     try {
@@ -27,6 +30,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
         await app.library.put(entry);
       }
       voice ||= entry?.item.voice ?? '';
+      if (entry) est = await estimate(entry.item);
       render();
     } catch (err) {
       if (entry) render();
@@ -46,7 +50,6 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
     const downloaded = app.downloads.isDownloaded(item) && done > 0;
     const downloading = app.downloads.active.get(item.id);
     const marks = app.state.bookmarksFor(item.id);
-    const totalChars = item.chapters.reduce((n, c) => n + c.chars, 0);
     const posChapter = pos && item.chapters.find((c) => c.n === pos.chapter);
 
     const playLabel = playingThis ? 'Open player' : pos && posChapter ? `Resume · ch ${pos.chapter}, ${formatDuration(pos.positionSec)}` : 'Play';
@@ -59,7 +62,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
         'p',
         { class: 'muted' },
         `${item.mode === 'teach' ? 'Teach' : 'Narrate'} · ${item.chapters.length} chapters · ` +
-          (ready ? formatDuration(itemDuration(item)) : `about ${estimateMinutes(totalChars)} min of audio`) +
+          (ready ? formatDuration(itemDuration(item)) : est ? `${aboutMinutes(est.audioSec)} of audio to generate` : '') +
           (pos && ready ? ` · ${Math.round(listenedFraction(entry, pos.chapter, pos.positionSec) * 100)}% listened` : ''),
         pos && !playingThis && h('span', { class: 'small' }, ` (last on ${pos.device})`),
       ),
@@ -69,7 +72,20 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
         h(
           'div',
           { class: 'buttons' },
-          h('button', { class: 'primary', onclick: () => (playingThis ? app.go('#/player') : void app.player.open(entry!).then(() => app.go('#/player'))) }, `▶ ${playLabel}`),
+          h(
+            'button',
+            {
+              class: 'primary',
+              onclick: async () => {
+                if (playingThis) return app.go('#/player');
+                // Streaming from Drive needs sign-in to last; a downloaded item doesn't.
+                if (!downloaded && navigator.onLine) await app.freshFor(30);
+                await app.player.open(entry!);
+                app.go('#/player');
+              },
+            },
+            `▶ ${playLabel}`,
+          ),
           h('button', { onclick: () => app.go(readHash(itemPath)) }, 'Read'),
         ),
       done > 0 &&
@@ -139,6 +155,12 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       VOICES.map((v) => h('option', { value: v.id, selected: v.id === voice }, `${v.name} — ${v.label}`)),
     );
     const label = done === item.chapters.length ? 'Generate again' : started && voice === item.voice ? 'Resume generating' : 'Generate';
+    const long = !!est && est.audioSec > LONG_JOB_SEC;
+    const estimateLine =
+      est && !mine?.running
+        ? `${aboutMinutes(est.audioSec)} of audio. ` +
+          (est.generateSec ? `Ready in ${aboutMinutes(est.generateSec)} on this ${deviceName()} (measured ${est.realTimeFactor!.toFixed(1)}× real time).` : `This device's speed is measured on its first run.`)
+        : null;
     return h(
       'div',
       { class: 'generate' },
@@ -146,14 +168,29 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       item.error && !mine?.running && h('p', { class: 'error' }, `Last run stopped: ${item.error}`),
       h('label', { class: 'field' }, h('span', null, 'Voice'), select),
       voice !== item.voice && started && h('p', { class: 'muted small' }, 'Changing the voice regenerates every chapter.'),
+      estimateLine && h('p', { class: 'muted small' }, estimateLine),
+      long && !mine?.running && h('p', { class: 'banner' }, 'This is a long job (over 45 minutes of audio). The phone may get warm; plug it in. Send to desktop (phase 6) will be the better choice for jobs this size.'),
       mine?.running
-        ? h('button', { onclick: stopJob }, 'Stop')
+        ? h(
+            'div',
+            { class: 'buttons' },
+            h('button', { class: 'primary', onclick: enterSleepMode }, '☾ Sleep mode'),
+            h('button', { onclick: stopJob }, 'Stop'),
+          )
         : h(
             'div',
             { class: 'buttons' },
             h(
               'button',
-              { class: done === 0 ? 'primary' : undefined, disabled: busyElsewhere || !navigator.onLine, onclick: () => void startJob(app.storage, itemPath, voice).then(refresh) },
+              {
+                class: done === 0 ? 'primary' : undefined,
+                disabled: busyElsewhere || !navigator.onLine,
+                onclick: async () => {
+                  // Uploads happen as chapters finish; keep sign-in alive for the whole job if we can.
+                  await app.freshFor((est?.generateSec ?? 30 * 60) / 60 + 5);
+                  void startJob(app.storage, itemPath, voice, item, est?.charsPerSec ?? 15).then(refresh);
+                },
+              },
               `${label} on this device`,
             ),
             h('button', { disabled: true, title: 'Arrives in phase 6' }, 'Send to desktop'),
@@ -182,7 +219,13 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
             'Finish uploading',
           ),
         ),
-      mine?.running && h('p', { class: 'muted small' }, 'Keep Noteable open and the screen on until it finishes. Switching apps pauses generation. (Sleep mode arrives in phase 4.)'),
+      mine?.running &&
+        h(
+          'p',
+          { class: 'muted small' },
+          'The screen stays on while this runs. Tap Sleep mode and put the phone away; it vibrates and chimes when done. Pressing the power button or switching apps pauses the job. Plug in for long jobs.',
+          mine.pausedSec >= 5 ? ` Paused so far: ${formatDuration(mine.pausedSec)}.` : '',
+        ),
     );
   };
 
@@ -226,15 +269,11 @@ function progressPanel(job: JobState): HTMLElement {
       `${p.phase === 'uploading' ? 'Uploading' : p.phase === 'generating' ? `Chapter ${p.chapter} of ${p.chaptersTotal}` : p.phase === 'done' ? 'Done' : 'Finished; upload waiting'} · ` +
         `${formatDuration(p.audioSec)} of audio in ${formatDuration(p.elapsedSec)}` +
         (p.realTimeFactor ? ` · ${p.realTimeFactor.toFixed(1)}× real time` : '') +
+        (job.running && job.remainingAudioSec !== undefined && p.realTimeFactor ? ` · ${aboutMinutes(job.remainingAudioSec / p.realTimeFactor)} left` : '') +
         (p.device ? ` · ${p.device === 'webgpu' ? 'GPU' : 'CPU'}` : ''),
     );
   }
   if (job.error) lines.push(h('span', { class: 'error' }, job.error));
   if (job.result?.uploadError) lines.push(h('span', { class: 'error' }, `Upload paused: ${job.result.uploadError}`));
   return h('div', { class: 'progress' }, lines.map((l) => (typeof l === 'string' ? h('div', null, l) : l)));
-}
-
-/** Kokoro speaks roughly 15 characters per second at 1×. Refined in phase 4 with measured numbers. */
-function estimateMinutes(chars: number): number {
-  return Math.max(1, Math.round(chars / 15 / 60));
 }

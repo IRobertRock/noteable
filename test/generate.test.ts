@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { finishUploads, generateItem, type GenerateDeps } from '../src/generate/generateItem';
-import { memoryPending } from '../src/generate/pending';
+import { memoryCheckpoints, memoryPending } from '../src/generate/pending';
 import { importMarkdown } from '../src/import/importMarkdown';
 import type { Item } from '../src/model/item';
 import { readJson, type Storage } from '../src/storage/Storage';
@@ -38,14 +38,15 @@ function fakeEngine(failOnCall?: number) {
   return engine;
 }
 
-const fakeWriter = async (): Promise<Mp3Writer> => {
-  let sec = 0;
+const fakeWriter = async (resume?: { blob: Blob; samples: number }): Promise<Mp3Writer> => {
+  let sec = resume ? resume.samples / 24000 : 0;
   return {
     push: (pcm) => void (sec += pcm.length / 24000),
     silence: (s) => void (sec += s),
     get durationSec() {
       return sec;
     },
+    checkpoint: () => ({ blob: new Blob([`mp3:${sec.toFixed(2)}`]), samples: Math.round(sec * 24000) }),
     finish: () => new Blob([`mp3:${sec.toFixed(2)}`], { type: 'audio/mpeg' }),
   };
 };
@@ -157,5 +158,44 @@ describe('generateItem', () => {
     const item = await readJson<Item>(storage, `${itemPath}/item.json`);
     expect(item.status).toBe('draft');
     expect(item.error).toBeUndefined();
+  });
+});
+
+describe('mid-chapter checkpoints', () => {
+  const LONG = `---\ntitle: Long\n---\n## Only\n${Array.from({ length: 40 }, (_, i) => `Paragraph ${i} has one sentence.`).join('\n\n')}\n`;
+
+  it('resumes a killed chapter from its last checkpoint, not from the start', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    await storage.write('Inbox/long.md', LONG);
+    const { itemPath } = await importMarkdown(storage, 'Inbox/long.md');
+    const checkpoints = memoryCheckpoints();
+
+    // 1 heading + 40 paragraphs = 41 calls of 1 s each; die on call 36.
+    const first = fakeEngine(36);
+    await expect(generateItem(itemPath, 'af_bella', { ...deps(storage, first), checkpoints })).rejects.toThrow('GPU lost');
+    const cp = checkpoints.items.values().next().value!;
+    expect(cp.step).toBeGreaterThan(20);
+
+    const second = fakeEngine();
+    await generateItem(itemPath, 'af_bella', { ...deps(storage, second), checkpoints });
+    expect(second.calls()).toBeLessThan(41 - 25);
+    expect(checkpoints.items.size).toBe(0);
+    const item = await readJson<Item>(storage, `${itemPath}/item.json`);
+    expect(item.status).toBe('ready');
+    // Duration covers the whole chapter: 41 s of speech plus pauses.
+    expect(item.chapters[0].durationSec).toBeGreaterThan(41);
+  });
+
+  it('ignores a checkpoint made with a different voice', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    await storage.write('Inbox/long.md', LONG);
+    const { itemPath } = await importMarkdown(storage, 'Inbox/long.md');
+    const checkpoints = memoryCheckpoints();
+    await expect(generateItem(itemPath, 'af_bella', { ...deps(storage, fakeEngine(36)), checkpoints })).rejects.toThrow();
+    const engine = fakeEngine();
+    await generateItem(itemPath, 'bf_emma', { ...deps(storage, engine), checkpoints });
+    expect(engine.calls()).toBe(41);
   });
 });

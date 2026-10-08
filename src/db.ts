@@ -3,13 +3,14 @@
 //   pending   finished MP3s waiting to upload to Drive
 //   items     the library index (item.json + its Drive path), for offline browsing
 //   texts     chapter text of downloaded items
+//   checkpoints  part-finished chapters, so a killed page resumes mid-chapter
 
 import { openDB, type IDBPDatabase } from 'idb';
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function db(): Promise<IDBPDatabase> {
-  dbPromise ??= openDB('noteable', 3, {
+  dbPromise ??= openDB('noteable', 4, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) d.createObjectStore('kv');
       if (oldVersion < 2) d.createObjectStore('pending');
@@ -17,6 +18,7 @@ function db(): Promise<IDBPDatabase> {
         d.createObjectStore('items');
         d.createObjectStore('texts');
       }
+      if (oldVersion < 4) d.createObjectStore('checkpoints');
     },
   });
   return dbPromise;
