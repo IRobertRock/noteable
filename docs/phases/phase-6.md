@@ -1,6 +1,6 @@
 # Phase 6 — Desktop queue worker
 
-Status: **planned** (not started)
+Status: **built; needs the desktop OAuth client, then the gate**. App side deployed 2026-10-08. The worker runs from the repo on the desktop.
 
 ## Goal
 
@@ -22,15 +22,15 @@ I can tap Send to desktop on my phone, lock it, and later find the finished audi
 
 ## Steps
 
-1. [ ] **Spike:** `worker/spike.ts` — kokoro-js in Node with `device: 'dml'` (DirectML on the RX 9070 XT via onnxruntime-node) vs `'cpu'`, measure RTF. Record results in SPEC's benchmark table. If kokoro-js can't use DML, CPU on a 9800X3D is still expected to be several times real time.
-2. [ ] **Worker package.** `worker/package.json` (`"type": "module"`), `worker/tsconfig.json`; `npm install kokoro-js@1.2.1 wasm-media-encoders@0.7.0 systray2@2.1.4`; run with `node --experimental-strip-types` or a `tsx@4.x` dev dependency (pinned when added).
-3. [ ] **Auth for the worker.** `worker/src/auth.ts`: OAuth "Desktop app" client (a second client ID in the same Cloud project), loopback redirect + PKCE, refresh token stored with Windows DPAPI (via `@primno/dpapi`, pinned when added) in `%APPDATA%\Noteable\token.bin`, **never in the repo**. See the testing-mode 7-day refresh-token issue in the risk list — the Re-authorise tray item exists for that.
-4. [ ] **NodeDriveStorage.** `worker/src/NodeDriveStorage.ts`: the same `Storage` interface; shares the request-building code with `src/storage/DriveStorage.ts` (extracted into `src/storage/driveCore.ts`, fetch and token provider injected).
-5. [ ] **Queue loop.** `worker/src/queue.ts`: every 60 s list `Queue/`, reclaim stale `working` jobs, `claim` oldest `pending`, run `runChapterJob` (shared), heartbeat every 60 s, `complete`. Resumes chapter-by-chapter like the phone.
-6. [ ] **Tray.** `worker/src/tray.ts` with `systray2`: icon colours idle/working/error, menu items above. Logs to `%APPDATA%\Noteable\worker.log` (rotated at 5 MB).
-7. [ ] **Start with Windows.** `worker/scripts/install-startup.ps1`: builds, then creates a shortcut in `shell:startup` running `node worker/dist/main.js` hidden (`wscript` launcher). `uninstall-startup.ps1` removes it. (A Windows service can't show a tray icon, so not `node-windows`.)
-8. [ ] **App UI.** `src/ui/generate.ts` (Send to desktop), `src/ui/queue.ts` (job list: pending for N min / working on ch X, heartbeat N s ago / done / failed with message, Cancel for pending jobs).
-9. [ ] Commit, deploy app; update this document. Worker is run from the repo on the desktop (no installer).
+1. [x] **Spike:** `worker/spike.ts` — kokoro-js in Node with `device: 'dml'` (DirectML on the RX 9070 XT via onnxruntime-node) vs `'cpu'`, measure RTF. Record results in SPEC's benchmark table. If kokoro-js can't use DML, CPU on a 9800X3D is still expected to be several times real time.
+2. [x] **Worker package.** `worker/package.json` (`"type": "module"`), `worker/tsconfig.json`; `npm install kokoro-js@1.2.1 wasm-media-encoders@0.7.0 systray2@2.1.4`; run with `node --experimental-strip-types` or a `tsx@4.x` dev dependency (pinned when added).
+3. [x] **Auth for the worker.** `worker/src/auth.ts`: OAuth "Desktop app" client (a second client ID in the same Cloud project), loopback redirect + PKCE, refresh token stored with Windows DPAPI (via `@primno/dpapi`, pinned when added) in `%APPDATA%\Noteable\token.bin`, **never in the repo**. See the testing-mode 7-day refresh-token issue in the risk list — the Re-authorise tray item exists for that.
+4. [x] **NodeDriveStorage.** `worker/src/NodeDriveStorage.ts`: the same `Storage` interface; shares the request-building code with `src/storage/DriveStorage.ts` (extracted into `src/storage/driveCore.ts`, fetch and token provider injected).
+5. [x] **Queue loop.** `worker/src/queue.ts`: every 60 s list `Queue/`, reclaim stale `working` jobs, `claim` oldest `pending`, run `runChapterJob` (shared), heartbeat every 60 s, `complete`. Resumes chapter-by-chapter like the phone.
+6. [x] **Tray.** `worker/src/tray.ts` with `systray2`: icon colours idle/working/error, menu items above. Logs to `%APPDATA%\Noteable\worker.log` (rotated at 5 MB).
+7. [x] **Start with Windows.** `worker/scripts/install-startup.ps1`: builds, then creates a shortcut in `shell:startup` running `node worker/dist/main.js` hidden (`wscript` launcher). `uninstall-startup.ps1` removes it. (A Windows service can't show a tray icon, so not `node-windows`.)
+8. [x] **App UI.** `src/ui/generate.ts` (Send to desktop), `src/ui/queue.ts` (job list: pending for N min / working on ch X, heartbeat N s ago / done / failed with message, Cancel for pending jobs).
+9. [x] Commit, deploy app; update this document. Worker is run from the repo on the desktop (no installer).
 
 ## Tests
 
@@ -56,3 +56,18 @@ I can tap Send to desktop on my phone, lock it, and later find the finished audi
 1. Is the desktop usually on and signed in during the day? (Affects whether we want a wake timer.)
 2. OK to add a second OAuth client (type Desktop app) in the same Cloud project for the worker?
 3. 7-day refresh-token expiry in testing mode (see risks) — pick: re-authorise weekly from the tray, or move the consent screen to "In production" (unverified, personal use) for this phase.
+
+## Change log
+
+- 2026-10-08: built (Rob: "next phase").
+- **Spike:** DirectML fails on Kokoro (`ConvTranspose` → `80070057 The parameter is incorrect`, onnxruntime-node 1.21). The **CPU fp32** path runs at **8.5× real time** on the 9800X3D (109 s of audio in 12.8 s), so an hour of audio takes about 7 minutes. The worker uses the CPU. `wasm-media-encoders` works unchanged in Node.
+- **No separate worker package or `NodeDriveStorage`.** The worker lives in `worker/` inside the main repo and uses the root `node_modules`. It runs with `tsx@4.23.15` (`npm run worker`). It reuses `src/storage/DriveStorage.ts` as-is, because Node 24 has `fetch`, `Blob` and `FormData`, and the token functions are already injected. That guarantees the phone and desktop write identical files.
+- **DPAPI through PowerShell** instead of `@primno/dpapi`: no native module to build. `token.bin` can only be decrypted by this Windows user on this PC.
+- **Queue rules:** the oldest pending job first. A job is reclaimed if its worker has sent no heartbeat for 15 minutes. The worker resumes **its own** interrupted job straight away after a restart (no 15-minute wait). A lapsed Google sign-in puts the job back to `pending` instead of failing it. The heartbeat (every 60 s) also writes `progress` (chapter, chapters done, speed) for the app.
+- **On-disk stores** in `%APPDATA%\Noteable\pending` and `checkpoints` mirror the phone's IndexedDB stores, so a restart resumes mid-chapter.
+- **Tray** (`systray2@2.1.4`, smoke-tested on this PC: ready in 280 ms): icons for idle (green), working (blue), paused (amber) and needs sign-in / last job failed (red), made by `scripts/make-tray-icons.mjs`. Menu: status, last problem, Check the queue now, Pause/Resume, Sign in to Google again, Open log, Quit.
+- **Startup:** `worker/scripts/install-startup.ps1` creates `Noteable worker.lnk` in the Startup folder, pointing at `wscript start-hidden.vbs` (no console window), and starts the worker. `uninstall-startup.ps1` removes it and stops the worker.
+- **App:** **Send to desktop** sends the chapters still to generate (or all of them for a new voice). The item page shows the desktop job and checks it every 30 s. A new **Queue** tab shows waiting / working / stalled / done / failed jobs, with Cancel (before it starts), Retry and Remove.
+- **Self-test (`npx tsx worker/selftest.ts`)** runs the real worker pieces (Kokoro CPU, MP3, on-disk stores) against an in-memory Drive. On this PC: job done, item ready, two valid MP3 chapters, 7.4× real time on a short text.
+- Tests: 122 (worker claim/run/heartbeat, two workers racing, stale reclaim, own-job resume, failure, sign-in lapse, pause/cancel, plus the app-side queue actions).
+- **Still needed:** a "Desktop app" OAuth client in the Google Cloud project, with its ID and secret in `worker/.env` (git-ignored), then the first sign-in. While the project is in Testing mode, Google expires the worker's sign-in after 7 days, and the tray turns red and asks for **Sign in to Google again**.

@@ -14,6 +14,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 3 | Player, reading view, offline, laptop → phone resume | **Not tested yet** |
 | 4 | Sleep mode for long generations | **Not tested yet** |
 | 5 | PDF, Word, PowerPoint, EPUB, Google Docs import with cleanup | **Not tested yet** (needs a real deck + scanned reading) |
+| 6 | Send to desktop: the PC makes the audio while the phone is locked | **Not tested yet** (Claude sets up the desktop sign-in first) |
 
 ---
 
@@ -90,6 +91,25 @@ Also worth a quick try:
 - [ ] **Upload from this device** with a PDF or Word file from the phone.
 - [ ] **Pick from Google Drive** → open a folder → **Import** a Google Doc.
 - [ ] If a text PDF comes out garbled: open it, go to the preview and use **Re-run with OCR**.
+
+---
+
+## Phase 6 — desktop queue (about 15 minutes)
+
+> Done when: Send to desktop from the phone produces audio while the phone is locked.
+
+Setup on the desktop (Claude does this with you): the worker is installed, started with Windows, and signed in to Google. You'll see the Noteable icon in the system tray (click **^** by the clock if it's hidden). Green means idle.
+
+- [ ] 1. Restart the PC. After you log in, the tray icon comes back on its own (green).
+- [ ] 2. On the S23: put a markdown file of about 10 minutes in the Inbox (or use **phase-4-gate-test.md** if you haven't imported it yet) and **Import** it.
+- [ ] 3. On the item page tap **🖥 Send to desktop**. It says "Queued on the desktop".
+- [ ] 4. Lock the phone and put it away.
+- [ ] 5. Within about a minute, the tray icon turns blue (hover over it: "Working: Chapter 1 of …").
+- [ ] 6. When the icon is green again, unlock the phone → **Queue** tab: the job says **Done**.
+- [ ] 7. Play the item on the phone. The chapters are in Drive under `audio/`.
+- [ ] 8. Stall check: send another item to the desktop. While it's working, right-click the tray icon → **Quit**. On the phone the job shows "last update … ago", and after 15 minutes **Stalled**. Start the worker again (Start menu → type `Noteable worker`, or restart the PC). It carries on without redoing finished chapters.
+
+If the tray icon is **red**: right-click → **Sign in to Google again**. While the Google project is in Testing mode, this is needed about once a week.
 
 ---
 
