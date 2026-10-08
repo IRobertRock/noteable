@@ -46,7 +46,7 @@ export async function readPptx(data: ArrayBuffer, fileName: string): Promise<Raw
   const key = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
   const counts = new Map<string, number>();
   for (const s of slides) for (const k of new Set(s.body.map(key))) counts.set(k, (counts.get(k) ?? 0) + 1);
-  const minRepeats = Math.max(3, Math.ceil(slides.length * 0.5));
+  const minRepeats = Math.max(2, Math.ceil(slides.length * 0.5));
   for (const [i, s] of slides.entries()) {
     s.body = s.body.filter((t) => {
       if ((counts.get(key(t)) ?? 0) < minRepeats) return true;

@@ -1,6 +1,6 @@
 # Phase 5 — Document importers and cleanup
 
-Status: **planned** (not started)
+Status: **built, gate not yet tested**. Deployed 2026-10-08; the gate steps are in `docs/TESTING.md`. Waiting for a real ECON 1000 deck and scanned reading.
 
 ## Goal
 
@@ -23,25 +23,25 @@ I can import a PDF, scanned PDF, DOCX, PPTX, EPUB or Google Doc (or several as a
 
 ## Steps
 
-1. [ ] **Dependencies:** `npm install pdfjs-dist@6.4.299 tesseract.js@7.0.0 mammoth@1.13.0 jszip@3.10.2`. All loaded lazily per format so the app shell stays small. PDF.js worker and Tesseract worker/lang data (`eng.traineddata`, ~10 MB) are fetched on first use and cached.
-2. [ ] **Common model.** `src/import/types.ts`: `RawDoc { title, blocks: Block[] }`, `Block { kind: 'heading'|'para'|'footnote'|'listItem'|'notes', level?, text, page?, y?, fontSize? }`. Every reader produces a `RawDoc`; cleanup works on that.
-3. [ ] **PDF.** `src/import/pdf.ts`: per page `getTextContent()`, group items into lines by y, lines into paragraphs by gap and indent, headings by font size relative to body median, footnotes by small font at page bottom with a leading marker number. Outline (`getOutline()`) → chapter splits when present.
-4. [ ] **Scanned PDF.** `src/import/ocr.ts`: if < 20 characters per page on average, render each page to canvas at 2× (PDF.js) and run Tesseract (`createWorker('eng')`), with page-by-page progress; text into the same block pipeline (no font sizes, so headings come from short lines in caps/title case).
-5. [ ] **DOCX.** `src/import/docx.ts`: `mammoth.convertToHtml` with a style map for headings and footnotes → blocks.
-6. [ ] **PPTX.** `src/import/pptx.ts`: `ppt/presentation.xml` slide order, `ppt/slides/slideN.xml` text runs (`a:t`) by shape, title placeholder as heading, `ppt/notesSlides/` speaker notes appended after the slide text. Slide groups → chapters by section (`p14:sectionLst`) when present, else by title slides, else every ~10 slides.
-7. [ ] **EPUB.** `src/import/epub.ts`: `META-INF/container.xml` → OPF → spine order → XHTML → blocks; nav/toc for chapter titles.
-8. [ ] **Google Docs.** `Storage` gains `export(path, mimeType)` (Drive `files.export` to `text/markdown` or `text/plain`) — an interface addition, flagged in this doc when added.
-9. [ ] **Cleanup.** `src/import/cleanup/` one file per rule, each pure and unit tested:
+1. [x] **Dependencies:** `npm install pdfjs-dist@6.4.299 tesseract.js@7.0.0 mammoth@1.13.0 jszip@3.10.2`. All loaded lazily per format so the app shell stays small. PDF.js worker and Tesseract worker/lang data (`eng.traineddata`, ~10 MB) are fetched on first use and cached.
+2. [x] **Common model.** `src/import/types.ts`: `RawDoc { title, blocks: Block[] }`, `Block { kind: 'heading'|'para'|'footnote'|'listItem'|'notes', level?, text, page?, y?, fontSize? }`. Every reader produces a `RawDoc`; cleanup works on that.
+3. [x] **PDF.** `src/import/pdf.ts`: per page `getTextContent()`, group items into lines by y, lines into paragraphs by gap and indent, headings by font size relative to body median, footnotes by small font at page bottom with a leading marker number. Outline (`getOutline()`) → chapter splits when present.
+4. [x] **Scanned PDF.** `src/import/ocr.ts`: if < 20 characters per page on average, render each page to canvas at 2× (PDF.js) and run Tesseract (`createWorker('eng')`), with page-by-page progress; text into the same block pipeline (no font sizes, so headings come from short lines in caps/title case).
+5. [x] **DOCX.** `src/import/docx.ts`: `mammoth.convertToHtml` with a style map for headings and footnotes → blocks.
+6. [x] **PPTX.** `src/import/pptx.ts`: `ppt/presentation.xml` slide order, `ppt/slides/slideN.xml` text runs (`a:t`) by shape, title placeholder as heading, `ppt/notesSlides/` speaker notes appended after the slide text. Slide groups → chapters by section (`p14:sectionLst`) when present, else by title slides, else every ~10 slides.
+7. [x] **EPUB.** `src/import/epub.ts`: `META-INF/container.xml` → OPF → spine order → XHTML → blocks; nav/toc for chapter titles.
+8. [x] **Google Docs.** `Storage` gains `export(path, mimeType)` (Drive `files.export` to `text/markdown` or `text/plain`) — an interface addition, flagged in this doc when added.
+9. [x] **Cleanup.** `src/import/cleanup/` one file per rule, each pure and unit tested:
    1. `headersFooters.ts` — lines (normalised: digits → `#`) repeating at the top/bottom of ≥ 50 % of pages; standalone page numbers (`12`, `Page 12`, `12 of 40`, roman numerals).
    2. `citations.ts` — `(Smith, 2019)`, `(Smith & Jones, 2019, p. 4)`, `(Smith et al., 2019; Lee, 2020)`, `[12]`, `[3–5]`, `[1, 4]`, superscript footnote markers.
    3. `references.ts` — drop from a "References"/"Bibliography"/"Works Cited" heading to the next same-or-higher-level heading (or the end).
    4. `footnotes.ts` — collect footnote blocks, attach to their section, emit "Notes for this section." + notes at section end.
    5. `rejoin.ts` — `exam-\nple` → `example` (when the joined word is more likely than the hyphenated form), soft line breaks merged into paragraphs.
    6. `chapters.ts` — split by EPUB spine, PPTX groups, PDF outline, else headings level 1–2.
-10. [ ] **Drive browser.** `src/ui/driveBrowser.ts` — browse My Drive folders through `Storage` (needs `Storage` paths outside `Noteable/`, e.g. `drive:/My Drive/...`; flagged as an interface extension).
-11. [ ] **Preview.** `src/ui/preview.ts`: chapter list with include toggles, drag to reorder, editable text (`contenteditable` plain text), "show what was removed" toggle highlighting dropped lines for checking.
-12. [ ] **Course packs.** `src/ui/coursePack.ts`: pick several sources, order them, title and collection; writes one item with all sources in `sources/`.
-13. [ ] Commit, deploy, update this document.
+10. [x] **Drive browser.** `src/ui/driveBrowser.ts` — browse My Drive folders through `Storage` (needs `Storage` paths outside `Noteable/`, e.g. `drive:/My Drive/...`; flagged as an interface extension).
+11. [x] **Preview.** `src/ui/preview.ts`: chapter list with include toggles, drag to reorder, editable text (`contenteditable` plain text), "show what was removed" toggle highlighting dropped lines for checking.
+12. [x] **Course packs.** `src/ui/coursePack.ts`: pick several sources, order them, title and collection; writes one item with all sources in `sources/`.
+13. [x] Commit, deploy, update this document.
 
 ## Tests
 
@@ -64,7 +64,23 @@ I can import a PDF, scanned PDF, DOCX, PPTX, EPUB or Google Doc (or several as a
 
 ## Open questions
 
-1. Can you share the actual ECON 1000 deck and the scanned reading (Drive link) early, so I can test the cleanup against them on the laptop first? They would not be committed.
-2. Citation style in your courses: APA, Chicago author-date, numbered, or a mix?
-3. PPTX chapters: one chapter per section, per title slide, or per ~10 slides by default?
-4. Should OCR also be available for PDFs that do have a text layer but a bad one (a manual "Re-run as OCR" button)?
+1. Can you share the actual ECON 1000 deck and the scanned reading (Drive link) early, so I can test the cleanup against them on the laptop first? They would not be committed. (Still open: none in the Inbox on 2026-10-08.)
+2. Citation style: all of APA, Chicago author-date and numbered are handled (default used).
+3. PPTX chapters: PowerPoint sections if present, else title/section-header slides, else every 10 slides (default used).
+4. "Re-run with OCR" button: added in the preview for PDF items without audio (default used).
+
+## Change log
+
+- 2026-10-08: built and deployed straight after phase 4 (Rob: "Next phase"). No real course files were in the Inbox, so the cleanup was built and tested against generated fixtures. The real-file check is the gate.
+- **Storage interface additions** (flagged in steps 8 and 10): optional `browse(folderId?)`, `readById(id)` and `exportById(id, mimeType)` instead of `export(path)` plus `drive:/` paths. IDs suit files outside `Noteable/` better than paths, and a future `RailwayStorage` can simply leave them out.
+- **Google Slides** are imported too, exported from Drive as .pptx.
+- **Readers** are in `src/import/readers/`; cleanup rules are in `src/import/cleanup/` (one file per rule). Headers/footers and line joining run inside the PDF/OCR path because they need page positions. Each block carries what was removed from it, so "Show removed" lists it under the right chapter.
+- PDF: headings by font size (≥1.15× body); footnotes are small type in the bottom 30% of a page; outline entries become chapter breaks; a scan is detected at fewer than 20 characters per page. OCR (Tesseract 7) uses its own paragraph boundaries; the engine (~15 MB) loads from the CDN on first use.
+- PPTX: placeholders for slide number, footer, date and header are dropped; text repeated word for word on at least half the slides (min 2) is treated as a footer. Exact match only, so "Step 1 / Step 2" bullets stay.
+- A chapter's first sub-heading is dropped when it repeats the chapter title (seen with title slides and single-heading Word files).
+- Very long chapters (over ~22,000 characters, about 25 minutes) are split into parts.
+- Markdown files in the Inbox (Claude's guides) still go straight to the item using their own `##` chapters, with no cleanup. Other formats open the **text preview** after import.
+- Preview: rename, edit (markdown textarea), include/exclude, and reorder (only before any audio, because audio files are numbered by chapter). Editing a chapter that already has audio marks just that chapter for regeneration.
+- Import libraries are lazy `assets/import-*` chunks, excluded from the service-worker precache (shell ~480 KB).
+- **Browser check (desktop, `/spikes/import.html`)**: a text PDF lost its running header, page numbers, citations and reference list, kept the footnote as "Notes for this section", and mended the hyphenated "eve-/ning". The PPTX kept slides and notes in order. The DOCX footnote was placed. A scanned (image-only) PDF was read by OCR almost word for word, with "(Locke, 1689)" and "[4]" removed. Two issues found and fixed: the repeated footer in a 2-slide deck, and the chapter title read twice.
+- Tests: 111 (cleanup rules with keep/remove cases, each reader on generated PDF/DOCX/PPTX/EPUB files under jsdom, import pipeline, course packs, Google Doc export, preview save rules).

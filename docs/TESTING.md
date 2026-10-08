@@ -13,6 +13,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 2 | Markdown file → chaptered MP3s on the phone | **Passed** (Oct 8, 1.41× real time) |
 | 3 | Player, reading view, offline, laptop → phone resume | **Not tested yet** |
 | 4 | Sleep mode for long generations | **Not tested yet** |
+| 5 | PDF, Word, PowerPoint, EPUB, Google Docs import with cleanup | **Not tested yet** (needs a real deck + scanned reading) |
 
 ---
 
@@ -66,6 +67,29 @@ If anything goes wrong:
 - If the card says the browser won't keep the screen on, set **Settings → Display → Screen timeout** to 10 minutes and try again.
 - Samsung's **Accidental touch protection** can block the long press in a pocket. Take the phone out to wake it.
 - If the job stopped, open the item and tap **Resume generating**. It continues from the last 30-second checkpoint.
+
+---
+
+## Phase 5 — document import and cleanup (about 15 minutes)
+
+> Done when: a real ECON 1000 slide deck and a scanned reading each import cleanly with no page numbers or citations read aloud.
+
+You need: a real ECON 1000 slide deck (PowerPoint, Google Slides or PDF) and a scanned reading (a PDF that is just page images). Put both in **Noteable/Inbox** in Drive, or use **Pick from Google Drive** in the app.
+
+- [ ] 1. Noteable → **Inbox** → **Import** next to the slide deck. A progress panel shows, then the **text preview** opens.
+- [ ] 2. In the preview, open a couple of chapters with **Read / edit text**. Check: slides are in order, speaker notes are included, and there's no slide number or footer text (like "ECON 1000 – Fall 2026").
+- [ ] 3. Tap **Removed (N)** on a chapter to see what was taken out. Anything there that should have stayed? Note it.
+- [ ] 4. Tap **Looks good, continue** → **Generate on this device**. Play two chapters at 1.5×: no "slide 7", no footer, no "(Mankiw, 2021)".
+- [ ] 5. Back in **Inbox** → **Import** next to the scanned reading. The panel shows "Reading scanned page 1 of N (OCR)". This takes a while: about a minute per page on the phone. Keep the screen on.
+- [ ] 6. In the preview: no page numbers, no running header, no citation brackets, no reference list. Footnotes appear at the end of their section after "Notes for this section."
+- [ ] 7. Fix anything wrong right there in the text, **Save and continue**, **Generate**, and play a chapter.
+- [ ] 8. Tell Claude anything that slipped through or was wrongly removed, with the file name. Each one becomes a test case.
+
+Also worth a quick try:
+- [ ] Tick two Inbox files → **Import as one item** (course pack). Chapters follow the order shown.
+- [ ] **Upload from this device** with a PDF or Word file from the phone.
+- [ ] **Pick from Google Drive** → open a folder → **Import** a Google Doc.
+- [ ] If a text PDF comes out garbled: open it, go to the preview and use **Re-run with OCR**.
 
 ---
 

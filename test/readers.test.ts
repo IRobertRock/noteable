@@ -35,6 +35,11 @@ describe('PPTX', () => {
     expect(doc.removed.filter((r) => r.reason === 'header or footer')).toHaveLength(5);
   });
 
+  it('catches a repeated footer even in a two-slide deck', async () => {
+    const text = allText(cleanDoc(await readPptx(await buildPptx(deck.slice(0, 2)), 'short.pptx')));
+    expect(text).not.toContain('Fall 2026');
+  });
+
   it('splits chapters at title / section-header slides when there are no sections', async () => {
     const chapters = cleanDoc(await readPptx(await buildPptx(deck), 'week3.pptx'));
     expect(chapters.map((c) => c.title)).toEqual(['ECON 1000: Week 3', 'Trade-offs']);

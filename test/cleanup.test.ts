@@ -178,6 +178,13 @@ describe('rule 6: chapters', () => {
   });
 });
 
+describe('chapter markdown', () => {
+  it('does not repeat the chapter title as its first sub-heading', () => {
+    const [c] = cleanDoc({ title: 'Week 3', removed: [], blocks: [{ kind: 'chapter', text: 'Week 3' }, { kind: 'heading', text: 'Week 3', level: 3 }, { kind: 'para', text: 'Body.' }] });
+    expect(c.markdown).toBe('## Week 3\n\nBody.\n');
+  });
+});
+
 describe('cleanDoc end to end', () => {
   it('produces chapter markdown with notes, and lists what it removed per chapter', () => {
     const chapters = cleanDoc({

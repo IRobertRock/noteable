@@ -52,7 +52,11 @@ function splitLong(s: Section): Section[] {
 /** Section → chapter markdown. Sub-headings become ###; footnote notes are already placed. */
 export function toMarkdown(s: Section, removed: Removed[]): CleanChapter {
   const lines = [`## ${s.title}`, ''];
-  for (const b of s.blocks) {
+  // Don't read the chapter title twice when its first heading says the same thing.
+  const first = s.blocks.find((b) => b.text.trim());
+  const same = (a: string, b: string) => a.toLowerCase().replace(/\W+/g, ' ').trim() === b.toLowerCase().replace(/\W+/g, ' ').trim();
+  const blocks = first?.kind === 'heading' && same(first.text, s.title) ? s.blocks.filter((b) => b !== first) : s.blocks;
+  for (const b of blocks) {
     if (b.kind === 'heading') lines.push(`### ${escapeMd(b.text)}`, '');
     else if (b.text.trim()) lines.push(escapeMd(b.text), '');
   }
