@@ -1,6 +1,6 @@
 # Phase 6 — Desktop queue worker
 
-Status: **built; needs the desktop OAuth client, then the gate**. App side deployed 2026-10-08. The worker runs from the repo on the desktop.
+Status: **built and running on the desktop; phone gate not yet tested**. App side deployed, worker installed at Windows startup and signed in, and an end-to-end job through the real Drive passed on 2026-10-08.
 
 ## Goal
 
@@ -53,9 +53,9 @@ I can tap Send to desktop on my phone, lock it, and later find the finished audi
 
 ## Open questions
 
-1. Is the desktop usually on and signed in during the day? (Affects whether we want a wake timer.)
-2. OK to add a second OAuth client (type Desktop app) in the same Cloud project for the worker?
-3. 7-day refresh-token expiry in testing mode (see risks) — pick: re-authorise weekly from the tray, or move the consent screen to "In production" (unverified, personal use) for this phase.
+1. Is the desktop usually on and signed in during the day? (Affects whether we want a wake timer.) Still open; no wake timer for now.
+2. ~~Second OAuth client~~ Yes (2026-10-08); created.
+3. ~~7-day expiry~~ Re-sign in weekly from the tray (2026-10-08).
 
 ## Change log
 
@@ -70,4 +70,6 @@ I can tap Send to desktop on my phone, lock it, and later find the finished audi
 - **App:** **Send to desktop** sends the chapters still to generate (or all of them for a new voice). The item page shows the desktop job and checks it every 30 s. A new **Queue** tab shows waiting / working / stalled / done / failed jobs, with Cancel (before it starts), Retry and Remove.
 - **Self-test (`npx tsx worker/selftest.ts`)** runs the real worker pieces (Kokoro CPU, MP3, on-disk stores) against an in-memory Drive. On this PC: job done, item ready, two valid MP3 chapters, 7.4× real time on a short text.
 - Tests: 122 (worker claim/run/heartbeat, two workers racing, stale reclaim, own-job resume, failure, sign-in lapse, pause/cancel, plus the app-side queue actions).
-- **Still needed:** a "Desktop app" OAuth client in the Google Cloud project, with its ID and secret in `worker/.env` (git-ignored), then the first sign-in. While the project is in Testing mode, Google expires the worker's sign-in after 7 days, and the tray turns red and asks for **Sign in to Google again**.
+- **Setup done 2026-10-08:** created a "Noteable desktop worker" OAuth client (Desktop app) in `noteable-510805`. Its ID is in `worker/.env`; Rob pasted the secret himself, because Claude is not permitted to copy secrets out of the browser. Google no longer re-displays secrets; a new one comes from **Add secret** in the client's right-hand panel, which only shows in a wide window. Ran `install-startup.ps1` (Startup shortcut created, worker started) and Rob signed in. Token saved DPAPI-encrypted in `%APPDATA%\Noteable\token.bin`.
+- **Weekly sign-in (Rob's decision, 2026-10-08):** keep the consent screen in Testing mode. About every 7 days the tray turns red; right-click → **Sign in to Google again**.
+- **End-to-end on the real Drive** (`npx tsx worker/e2e.ts desktop-worker-test.md`): imported `Inbox/desktop-worker-test.md` and sent it to the desktop. The running worker claimed it 16 s later and generated 2 chapters (22 s + 15 s, Michael) at 8.1× real time on the CPU. It uploaded `audio/01.mp3` and `audio/02.mp3`, and the job was **done** after 32 s in total. The item `Library/General/Desktop Worker Test` is left in the library for Rob to play.
