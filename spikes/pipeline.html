@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Noteable pipeline test</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; background: #0b0d10; color: #e9edf2; padding: 16px; max-width: 640px; margin: auto; }
+      button { font: inherit; padding: 10px 16px; border-radius: 10px; border: 0; background: #f2b84b; }
+      pre { white-space: pre-wrap; background: #151920; padding: 12px; border-radius: 10px; }
+      audio { width: 100%; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Pipeline test</h1>
+    <p>Imports a 3-chapter guide into an in-memory Drive, generates it with the real voice engine and MP3 encoder, and plays each chapter. Your Google Drive is not touched.</p>
+    <button id="run">Run</button>
+    <pre id="log"></pre>
+    <div id="players"></div>
+    <script type="module" src="./pipeline.ts"></script>
+  </body>
+</html>

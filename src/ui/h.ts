@@ -31,3 +31,12 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 export function mount(root: HTMLElement, ...nodes: Node[]): void {
   root.replaceChildren(...nodes);
 }
+
+/** Replaces an element's children, skipping null/false entries like h() does. */
+export function fill(el: HTMLElement, ...children: (Child | Child[])[]): void {
+  el.replaceChildren();
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false || child === '') continue;
+    el.append(child instanceof Node ? child : String(child));
+  }
+}

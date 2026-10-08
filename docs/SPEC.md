@@ -247,7 +247,8 @@ The S23 Ultra generates Kokoro audio at about 1.1× real time on its GPU, so one
 | S23 Ultra | WebGPU fp32, Chrome | 1.09× full run (1.45× partial) | Kokoro Phone Bench, Oct 6, 2026 |
 | S23 Ultra | WASM q8, single thread | Did not finish warm-up | Same run; local-file page gets 1 thread |
 | Cloud workspace, 2-core CPU | Python ONNX | 2.7× | Voice sample test, Oct 5, 2026 |
-| Laptop and desktop | — | Not yet measured | First task in phase 2 |
+| Desktop (RX 9070 XT) | WebGPU fp32, Chromium 152 | 12.5× (111 s audio in 8.9 s, warm) | Phase 2 spike page, Oct 8, 2026 |
+| Laptop | — | Not yet measured | Run /noteable/spikes/kokoro-mp3.html |
 
 **Risks**
 

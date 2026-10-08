@@ -21,6 +21,10 @@ export class FakeDrive {
   /** Responses to return (in order) before handling requests normally. */
   failures: number[] = [];
   validToken = 'token-1';
+  /** Throw a network error on the Nth resumable chunk PUT (1-based). */
+  dropChunk?: number;
+  chunkPuts = 0;
+  private sessions = new Map<string, { fileId?: string; name?: string; parent?: string; mimeType: string; size: number; data: string }>();
   private seq = 0;
   private clock = Date.parse('2026-10-06T12:00:00Z');
 
@@ -51,6 +55,8 @@ export class FakeDrive {
     const method = init.method ?? 'GET';
     this.calls.push({ method, url: url.pathname + url.search });
 
+    if (url.hostname === 'upload.fake') return this.sessionPut(url.pathname.split('/').pop()!, init);
+
     const auth = new Headers(init.headers).get('Authorization');
     if (auth !== `Bearer ${this.validToken}`) return json({ error: { code: 401 } }, 401);
     const fail = this.failures.shift();
@@ -60,6 +66,20 @@ export class FakeDrive {
     if (!m) return json({ error: 'unknown route' }, 404);
     const [, upload, id] = m;
 
+    if (upload && url.searchParams.get('uploadType') === 'resumable') {
+      const headers = new Headers(init.headers);
+      const meta = JSON.parse(String(init.body)) as { name?: string; parents?: string[] };
+      const sid = `s${++this.seq}`;
+      this.sessions.set(sid, {
+        fileId: id,
+        name: meta.name,
+        parent: meta.parents?.[0],
+        mimeType: headers.get('X-Upload-Content-Type')!,
+        size: Number(headers.get('X-Upload-Content-Length')),
+        data: '',
+      });
+      return new Response(null, { status: 200, headers: { Location: `https://upload.fake/session/${sid}` } });
+    }
     if (method === 'GET' && !id) return json(this.query(url.searchParams.get('q')!, url.searchParams.get('orderBy')));
     if (method === 'GET' && id && url.searchParams.get('alt') === 'media') {
       const f = this.files.get(id);
@@ -93,6 +113,29 @@ export class FakeDrive {
     }
     return json({ error: 'unhandled' }, 400);
   };
+
+  private async sessionPut(sid: string, init: RequestInit): Promise<Response> {
+    const s = this.sessions.get(sid);
+    if (!s) return json({}, 404);
+    const range = new Headers(init.headers).get('Content-Range')!;
+    if (range.startsWith('bytes */')) {
+      return new Response(null, { status: 308, headers: s.data.length ? { Range: `bytes=0-${s.data.length - 1}` } : {} });
+    }
+    this.chunkPuts++;
+    if (this.chunkPuts === this.dropChunk) throw new TypeError('Failed to fetch');
+    const [, from] = range.match(/bytes (\d+)-/)!;
+    if (Number(from) !== s.data.length) return json({ error: 'bad offset' }, 400);
+    s.data += await (init.body as Blob).text();
+    if (s.data.length < s.size) return new Response(null, { status: 308, headers: { Range: `bytes=0-${s.data.length - 1}` } });
+    this.sessions.delete(sid);
+    if (s.fileId) {
+      const f = this.files.get(s.fileId)!;
+      f.content = s.data;
+      f.modifiedTime = new Date(this.clock++).toISOString();
+      return json(meta(f));
+    }
+    return json(meta(this.add(s.name!, s.parent!, s.mimeType, s.data)));
+  }
 
   private query(q: string, orderBy: string | null) {
     const parent = q.match(/'([^']+)' in parents/)?.[1];

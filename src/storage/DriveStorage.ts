@@ -20,6 +20,10 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const FOLDER = 'application/vnd.google-apps.folder';
 const FIELDS = 'id,name,mimeType,size,modifiedTime,createdTime';
 const MAX_TRIES = 4;
+/** Files above this use a resumable upload (MP3 chapters longer than about 10 minutes). */
+export const RESUMABLE_OVER = 5 * 1024 * 1024;
+/** Resumable chunk size; must be a multiple of 256 KiB. */
+export const CHUNK = 8 * 1024 * 1024;
 
 interface DriveFile {
   id: string;
@@ -91,9 +95,14 @@ export class DriveStorage implements Storage {
     const blob = typeof data === 'string' ? new Blob([data], { type: mimeType ?? 'text/plain' }) : data;
     const type = mimeType ?? (blob.type || 'application/octet-stream');
     const existing = await this.stat(p);
+    if (existing?.kind === 'folder') throw new DriveError(400, `Is a folder: ${p}`);
+
+    if (blob.size > RESUMABLE_OVER) {
+      const parentId = existing ? undefined : (await this.mkdir(dirname(p))).id;
+      return this.remember(p, await this.resumableUpload(blob, type, existing?.id, basename(p), parentId));
+    }
 
     if (existing) {
-      if (existing.kind === 'folder') throw new DriveError(400, `Is a folder: ${p}`);
       const res = await this.request(`${UPLOAD}/files/${existing.id}?uploadType=media&fields=${FIELDS}`, {
         method: 'PATCH',
         headers: { 'Content-Type': type },
@@ -265,6 +274,66 @@ export class DriveStorage implements Storage {
     const entry = this.remember('', (await res.json()) as DriveFile);
     this.rootPromise = Promise.resolve(entry);
     return entry;
+  }
+
+  /** Drive resumable upload: start a session, then PUT chunks, resuming after network errors. */
+  private async resumableUpload(blob: Blob, type: string, fileId: string | undefined, name: string, parentId?: string): Promise<DriveFile> {
+    const start = await this.request(
+      fileId ? `${UPLOAD}/files/${fileId}?uploadType=resumable&fields=${FIELDS}` : `${UPLOAD}/files?uploadType=resumable&fields=${FIELDS}`,
+      {
+        method: fileId ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': type,
+          'X-Upload-Content-Length': String(blob.size),
+        },
+        body: JSON.stringify(fileId ? {} : { name, parents: [parentId], mimeType: type }),
+      },
+    );
+    const session = start.headers.get('Location');
+    if (!session) throw new DriveError(500, 'Drive did not return an upload session');
+
+    let offset = 0;
+    let failures = 0;
+    while (true) {
+      const end = Math.min(offset + CHUNK, blob.size);
+      let res: Response;
+      try {
+        // The session URL carries its own authorisation; no bearer token needed.
+        res = await this.fetchImpl(session, {
+          method: 'PUT',
+          headers: { 'Content-Range': `bytes ${offset}-${end - 1}/${blob.size}` },
+          body: blob.slice(offset, end),
+        });
+      } catch (err) {
+        if (++failures >= MAX_TRIES) throw err;
+        await this.sleep(2 ** failures * 500);
+        offset = await this.uploadedBytes(session, blob.size);
+        continue;
+      }
+      if (res.ok) return (await res.json()) as DriveFile;
+      if (res.status === 308) {
+        const range = res.headers.get('Range');
+        offset = range ? Number(range.split('-')[1]) + 1 : 0;
+        failures = 0;
+        continue;
+      }
+      const text = await res.text().catch(() => '');
+      if (++failures < MAX_TRIES && isRetryable(res.status, text)) {
+        await this.sleep(2 ** failures * 500);
+        offset = await this.uploadedBytes(session, blob.size);
+        continue;
+      }
+      throw new DriveError(res.status, `Drive upload ${res.status}: ${text.slice(0, 300)}`);
+    }
+  }
+
+  /** Asks an upload session how much it already has. */
+  private async uploadedBytes(session: string, size: number): Promise<number> {
+    const res = await this.fetchImpl(session, { method: 'PUT', headers: { 'Content-Range': `bytes */${size}` } });
+    if (res.status !== 308) return 0;
+    const range = res.headers.get('Range');
+    return range ? Number(range.split('-')[1]) + 1 : 0;
   }
 
   private async requireFile(path: string): Promise<Entry> {

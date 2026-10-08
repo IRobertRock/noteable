@@ -117,6 +117,29 @@ describe('DriveStorage', () => {
     expect(drive.find('Noteable/Queue')).toHaveLength(1);
   });
 
+  it('uploads large files in resumable chunks, and replaces them the same way', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    const big = 'a'.repeat(17 * 1024 * 1024);
+    await storage.write('Library/General/Item/audio/01.mp3', new Blob([big]), 'audio/mpeg');
+    const [file] = drive.find('Noteable/Library/General/Item/audio/01.mp3');
+    expect(file.content.length).toBe(big.length);
+    expect(drive.chunkPuts).toBe(3);
+
+    await storage.write('Library/General/Item/audio/01.mp3', new Blob(['b'.repeat(6 * 1024 * 1024)]), 'audio/mpeg');
+    expect(drive.find('Noteable/Library/General/Item/audio/01.mp3')).toHaveLength(1);
+    expect(file.content[0]).toBe('b');
+  });
+
+  it('resumes a resumable upload after a dropped connection', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    drive.dropChunk = 2;
+    const big = 'x'.repeat(20 * 1024 * 1024);
+    await storage.write('State/big.bin', new Blob([big]));
+    expect(drive.find('Noteable/State/big.bin')[0].content.length).toBe(big.length);
+  });
+
   it('gives up after 4 tries', async () => {
     const drive = new FakeDrive();
     const { storage } = makeStorage(drive);

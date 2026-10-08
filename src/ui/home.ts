@@ -6,9 +6,6 @@ export interface HomeProps {
   layout: LayoutStatus[] | null;
   layoutError?: string;
   duplicateRoot: boolean;
-  needsTap: boolean;
-  online: boolean;
-  onReconnect: () => void;
   onRetry: () => void;
   onSignOut: (revoke: boolean) => void;
 }
@@ -21,15 +18,6 @@ export function homeScreen(p: HomeProps): HTMLElement {
   return h(
     'section',
     { class: 'screen' },
-    !p.online && h('div', { class: 'banner' }, 'Offline. Drive status will refresh when you reconnect.'),
-    p.needsTap &&
-      h(
-        'div',
-        { class: 'banner action' },
-        h('span', null, 'Google sign-in expired.'),
-        h('button', { class: 'primary small', onclick: p.onReconnect }, 'Reconnect'),
-      ),
-
     h(
       'header',
       { class: 'account' },

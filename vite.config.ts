@@ -15,6 +15,8 @@ export default defineConfig({
         main: 'index.html',
         // Phase 2 speed test; open /noteable/spikes/kokoro-mp3.html on each device.
         spike: 'spikes/kokoro-mp3.html',
+        // End-to-end generation test against an in-memory Drive.
+        pipeline: 'spikes/pipeline.html',
       },
     },
   },
@@ -44,7 +46,7 @@ export default defineConfig({
         // App shell only. Google, Drive and Hugging Face requests are never cached here.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         // The TTS engine is large and only needed when generating; it is cached on first use instead.
-        globIgnores: ['spikes/**', 'assets/spike-*', 'assets/tts.worker-*', 'assets/*.wasm'],
+        globIgnores: ['spikes/**', 'assets/spike-*', 'assets/pipeline-*', 'assets/tts.worker-*', 'assets/*.wasm'],
         navigateFallback: `${base}index.html`,
         runtimeCaching: [],
       },
