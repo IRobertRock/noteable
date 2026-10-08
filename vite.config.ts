@@ -56,6 +56,8 @@ export default defineConfig({
   ],
   test: {
     environment: 'happy-dom',
+    // The app uses mammoth's browser build (it takes an ArrayBuffer); test the same one.
+    alias: { mammoth: 'mammoth/mammoth.browser.js' },
     include: ['test/**/*.test.ts'],
   },
 });
