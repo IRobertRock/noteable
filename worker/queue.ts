@@ -7,6 +7,7 @@ import { finishUploads, generateItem } from '../src/generate/generateItem';
 import type { CheckpointStore, PendingStore } from '../src/generate/pending';
 import { readJson, STALE_JOB_MS, writeJson, type Job, type Storage } from '../src/storage/Storage';
 import type { TtsEngine } from '../src/tts/engine';
+import type { RecentJob } from '../src/queue/workerStatus';
 
 export type WorkerState = { kind: 'idle' } | { kind: 'working'; job: Job; detail: string } | { kind: 'paused' } | { kind: 'error'; message: string } | { kind: 'signed-out' };
 
@@ -29,8 +30,14 @@ export class QueueWorker {
   lastError?: string;
   /** Speed of the last finished job, for State/worker.json. */
   lastRealTimeFactor?: number;
+  /** Last 10 jobs, newest first, for the phone's dashboard. */
+  recent: RecentJob[] = [];
   onState?: (s: WorkerState) => void;
   private running = false;
+
+  private remember(r: RecentJob): void {
+    this.recent = [r, ...this.recent].slice(0, 10);
+  }
 
   constructor(private readonly d: QueueDeps) {}
 
@@ -102,6 +109,9 @@ export class QueueWorker {
       }
     };
     const timer = setInterval(() => void beat(), this.d.heartbeatMs);
+    const startedAt = this.now();
+    const item = job.itemPath.split('/').pop() ?? job.itemPath;
+    const minutes = () => Math.round((this.now() - startedAt) / 6000) / 10;
 
     try {
       const result = await generateItem(job.itemPath, job.voice, {
@@ -126,6 +136,7 @@ export class QueueWorker {
       this.d.log?.(`Done: ${job.itemPath} at ${result.realTimeFactor.toFixed(1)}× real time`);
       this.lastError = undefined;
       this.lastRealTimeFactor = Math.round(result.realTimeFactor * 10) / 10;
+      this.remember({ at: new Date(this.now()).toISOString(), item, chapters: job.chapters.length, result: 'done', realTimeFactor: this.lastRealTimeFactor, minutes: minutes() });
       this.set({ kind: 'idle' });
     } catch (err) {
       clearInterval(timer);
@@ -138,6 +149,7 @@ export class QueueWorker {
         return;
       }
       await storage.complete(job.id, { status: 'failed', error: message }).catch(() => {});
+      this.remember({ at: new Date(this.now()).toISOString(), item, chapters: job.chapters.length, result: 'failed', error: message, minutes: minutes() });
       this.lastError = message;
       this.set({ kind: 'error', message });
     }

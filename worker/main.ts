@@ -10,7 +10,8 @@ import { CHECKPOINT_DIR, HEARTBEAT_MS, LOCK_FILE, LOG_FILE, PENDING_DIR, POLL_MS
 import { AutoEngine } from './gpuEngine';
 import { log } from './log';
 import { QueueWorker } from './queue';
-import { answerLogRequest, writeStatus } from './status';
+import { answerLogRequest, applyControl, writeStatus } from './status';
+import { KeepAwake } from './keepAwake';
 import { fileCheckpoints, filePending } from './stores';
 import { Tray } from './tray';
 
@@ -63,11 +64,21 @@ async function main(): Promise<void> {
     );
 
   // Tell the app we're here: every minute on its own timer, so it stays fresh during long jobs.
-  const beat = () => (auth.signedIn ? writeStatus(storage, cfg.workerName, worker, true).catch((err) => log('Could not write worker status', err)) : Promise.resolve());
+  const awake = new KeepAwake(undefined, log);
+  const control: { at?: string } = {};
+  const beat = () =>
+    auth.signedIn
+      ? writeStatus(storage, cfg.workerName, worker, true, { engine: engine.kind, keepingAwake: awake.active }).catch((err) => log('Could not write worker status', err))
+      : Promise.resolve();
   const statusTimer = setInterval(() => void beat(), POLL_MS);
+  let wasWorking = false;
   worker.onState = (s) => {
     refreshTray();
-    if (s.kind !== 'working') void beat();
+    // Keep the PC awake only while a job runs.
+    if (s.kind === 'working') awake.start();
+    else awake.stop();
+    if (s.kind !== 'working' || !wasWorking) void beat();
+    wasWorking = s.kind === 'working';
   };
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -77,6 +88,10 @@ async function main(): Promise<void> {
       if (!auth.signedIn) {
         refreshTray();
       } else {
+        if (await applyControl(storage, worker, control).catch(() => false)) {
+          log(worker.paused ? 'Paused from the phone.' : 'Resumed from the phone.');
+          refreshTray();
+        }
         await beat();
         if (await answerLogRequest(storage, cfg.workerName).catch(() => false)) log('Wrote the log to Noteable/Logs for the app.');
         // Keep going while there is work; otherwise wait a minute.
@@ -99,6 +114,7 @@ async function main(): Promise<void> {
     log('Quitting.');
     clearTimeout(timer);
     clearInterval(statusTimer);
+    awake.stop();
     await engine.close().catch(() => {});
     await tray?.kill().catch(() => {});
     process.exit(0);

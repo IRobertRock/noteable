@@ -9,10 +9,31 @@ import { writeJson, type Storage } from '../src/storage/Storage';
 import { LOG_FILE, WORKER_DIR } from './config';
 import type { QueueWorker } from './queue';
 import { LOG_REQUEST_PATH as LOG_REQUEST } from '../src/queue/logRequest';
+import { WORKER_CONTROL_PATH, type WorkerControl } from '../src/queue/workerStatus';
+import { readJson } from '../src/storage/Storage';
+
+/** Applies a pause/resume sent from the phone (each request once). Returns true if it changed anything. */
+export async function applyControl(storage: Storage, worker: QueueWorker, applied: { at?: string }): Promise<boolean> {
+  const c = await readJson<WorkerControl>(storage, WORKER_CONTROL_PATH).catch(() => null);
+  if (!c || c.updatedAt === applied.at) return false;
+  const first = applied.at === undefined;
+  applied.at = c.updatedAt;
+  // On start-up, only honour a recent pause (a stale one would leave the worker idle forever).
+  if (first && (!c.paused || Date.now() - Date.parse(c.updatedAt) > 7 * 86_400_000)) return false;
+  if (worker.paused === c.paused) return false;
+  worker.paused = c.paused;
+  return true;
+}
 
 const VERSION = (JSON.parse(readFileSync(join(WORKER_DIR, '..', 'package.json'), 'utf8')) as { version: string }).version;
 
-export async function writeStatus(storage: Storage, name: string, worker: QueueWorker, signedIn: boolean, now = Date.now()): Promise<void> {
+export interface StatusExtras {
+  engine?: string;
+  keepingAwake?: boolean;
+}
+
+export async function writeStatus(storage: Storage, name: string, worker: QueueWorker, signedIn: boolean, extras: StatusExtras = {}, now = Date.now()): Promise<void> {
+  const s = worker.state;
   const status: WorkerStatus = {
     name,
     lastSeen: new Date(now).toISOString(),
@@ -21,6 +42,11 @@ export async function writeStatus(storage: Storage, name: string, worker: QueueW
     signedIn,
     busy: worker.state.kind === 'working',
     realTimeFactor: worker.lastRealTimeFactor,
+    ...(extras.engine ? { engine: extras.engine } : {}),
+    ...(s.kind === 'working' ? { current: `${s.job.itemPath.split('/').pop()} · ${s.detail}` } : {}),
+    ...(worker.lastError ? { lastError: worker.lastError } : {}),
+    ...(extras.keepingAwake ? { keepingAwake: true } : {}),
+    recent: worker.recent,
   };
   await writeJson(storage, WORKER_STATUS_PATH, status);
 }

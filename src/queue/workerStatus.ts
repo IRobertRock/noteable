@@ -10,9 +10,40 @@ export interface WorkerStatus {
   signedIn: boolean;
   busy: boolean;
   realTimeFactor?: number;
+  /** 'GPU' or 'CPU', once the voice engine has loaded. */
+  engine?: string;
+  /** What it's doing now, e.g. "Chapter 3 of 8". */
+  current?: string;
+  lastError?: string;
+  /** Keeping Windows awake for a job right now. */
+  keepingAwake?: boolean;
+  /** Last 10 jobs, newest first. */
+  recent?: RecentJob[];
+}
+
+export interface RecentJob {
+  at: string;
+  item: string;
+  chapters: number;
+  result: 'done' | 'failed';
+  realTimeFactor?: number;
+  minutes?: number;
+  error?: string;
+}
+
+/** Written by the app to pause or resume the worker from the phone. */
+export interface WorkerControl {
+  paused: boolean;
+  updatedAt: string;
 }
 
 export const WORKER_STATUS_PATH = 'State/worker.json';
+export const WORKER_CONTROL_PATH = 'State/worker-control.json';
+
+export async function setWorkerPaused(storage: Storage, paused: boolean): Promise<void> {
+  const control: WorkerControl = { paused, updatedAt: new Date().toISOString() };
+  await storage.write(WORKER_CONTROL_PATH, JSON.stringify(control, null, 2), 'application/json');
+}
 /** The worker polls every minute; three missed polls means offline. */
 export const ONLINE_WITHIN_MS = 3 * 60_000;
 

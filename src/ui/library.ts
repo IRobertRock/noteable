@@ -11,6 +11,29 @@ import { formatDuration } from './format';
 import { fill, h } from './h';
 import { coursePlan, examLabel, cardsDue } from '../study/plan';
 import { exportNotesButton, glossaryButton, itemCards } from './studyActions';
+import { sendCollection } from '../queue/jobs';
+
+function sendAllButton(app: App, name: string, rows: IndexedItem[]): HTMLElement | false {
+  const todo = rows.filter((x) => !x.item.review && x.item.chapters.some((c) => !c.excluded && c.status !== 'done'));
+  if (todo.length < 2) return false;
+  const status = h('span', { class: 'muted small' });
+  const btn = h('button', { class: 'small' }, `🖥 Send all to desktop (${todo.length})`) as HTMLButtonElement;
+  btn.addEventListener('click', async () => {
+    if (!confirm(`Queue ${todo.length} items from ${name} on the desktop? Each keeps its own voice; items already queued are skipped.`)) return;
+    btn.disabled = true;
+    status.textContent = 'Queuing…';
+    try {
+      await app.reconnectNow();
+      const n = await sendCollection(app.storage, rows);
+      status.textContent = n ? `Queued ${n}. See the Queue tab.` : 'Everything is already queued.';
+    } catch (err) {
+      status.textContent = (err as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return h('span', { class: 'inline-action' }, btn, ' ', status);
+}
 
 const REFRESH_MS = 120_000;
 
@@ -160,6 +183,7 @@ export function libraryScreen(app: App): HTMLElement {
                 examControl(name),
                 rows.some((x) => x.item.mode === 'teach' && !x.item.review) && glossaryButton(app, name, () => app.library.items.filter((x) => x.item.collection === name)),
                 exportNotesButton(app, name, () => app.library.items.filter((x) => x.item.collection === name)),
+                sendAllButton(app, name, rows),
               ),
             rows.length ? h('div', { class: 'list' }, rows.map((x) => itemRow(app, x))) : h('p', { class: 'muted small' }, 'Empty'),
           ];

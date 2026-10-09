@@ -30,6 +30,7 @@
     "workbox-window": "7.4.1"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "dompurify": "3.4.16",
     "idb": "8.0.3",
     "jszip": "3.10.2",

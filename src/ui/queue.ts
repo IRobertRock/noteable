@@ -4,27 +4,81 @@ import { itemHash, type App } from '../app';
 import { listJobs, removeJob, retryJob, type JobView } from '../queue/jobs';
 import { VOICES } from '../model/voices';
 import { fill, h } from './h';
-import { describeWorker, isOnline, readWorkerStatus } from '../queue/workerStatus';
+import { describeWorker, isOnline, readWorkerStatus, setWorkerPaused, type WorkerStatus } from '../queue/workerStatus';
 
 const REFRESH_MS = 20_000;
 
 export function queueScreen(app: App): HTMLElement {
   const body = h('div', null, h('p', { class: 'muted' }, 'Loading…'));
   const workerLine = h('p', { class: 'muted small worker-line' });
+  const dashboard = h('div', { class: 'dashboard' });
   const screen = h(
     'section',
     { class: 'screen' },
     h('div', { class: 'title-row' }, h('h1', null, 'Desktop queue'), h('button', { class: 'small', onclick: () => void load() }, 'Refresh')),
     h('p', { class: 'muted small' }, 'Items sent with "Send to desktop". The worker on your PC checks every minute while it is running.'),
     workerLine,
+    dashboard,
     body,
   );
+
+  const renderDashboard = (w: WorkerStatus | null) => {
+    if (!w) return fill(dashboard);
+    const facts = [
+      w.engine && `Engine: ${w.engine}`,
+      w.realTimeFactor && `Last speed: ${w.realTimeFactor}× real time`,
+      w.keepingAwake && 'Keeping the PC awake',
+    ].filter(Boolean) as string[];
+    fill(
+      dashboard,
+      w.current && h('p', { class: 'small' }, h('strong', null, 'Now: '), w.current),
+      facts.length > 0 && h('p', { class: 'muted small' }, facts.join(' · ')),
+      w.lastError && h('p', { class: 'error small' }, `Last problem: ${w.lastError}`),
+      h(
+        'div',
+        { class: 'buttons' },
+        h(
+          'button',
+          {
+            class: 'small',
+            onclick: (e: Event) => {
+              (e.currentTarget as HTMLButtonElement).disabled = true;
+              void act(() => setWorkerPaused(app.storage, !w.paused)).then(() => {
+                workerLine.textContent = w.paused ? 'Resume sent. The desktop picks it up within a minute.' : 'Pause sent. The desktop finishes its current job first.';
+              });
+            },
+          },
+          w.paused ? '▶ Resume desktop' : '⏸ Pause desktop',
+        ),
+      ),
+      w.recent &&
+        w.recent.length > 0 &&
+        h(
+          'details',
+          null,
+          h('summary', { class: 'small' }, `Recent jobs (${w.recent.length})`),
+          h(
+            'ul',
+            { class: 'recent small' },
+            w.recent.map((r) =>
+              h(
+                'li',
+                null,
+                `${new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${r.item} · ${r.chapters} ch · `,
+                r.result === 'done' ? `${r.realTimeFactor ?? '?'}× in ${r.minutes ?? '?'} min` : h('span', { class: 'error' }, `failed: ${r.error ?? ''}`),
+              ),
+            ),
+          ),
+        ),
+    );
+  };
 
   const load = async () => {
     try {
       const w = await readWorkerStatus(app.storage);
       workerLine.textContent = describeWorker(w) + (w?.realTimeFactor ? ` · last job ${w.realTimeFactor}× real time` : '');
       workerLine.classList.toggle('online', isOnline(w));
+      renderDashboard(w);
       const jobs = await listJobs(app.storage);
       fill(
         body,

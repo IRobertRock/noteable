@@ -11,6 +11,29 @@ import { NodeKokoroEngine } from './engine';
 export const ENGINE_URL = process.env.NOTEABLE_ENGINE_URL || 'https://irobertrock.github.io/noteable/spikes/engine.html';
 const CHROME_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--ignore-gpu-blocklist'];
 
+/**
+ * Speech should sit well inside ±1 with a modest RMS. Some GPU drivers make Kokoro
+ * return garbage on WebGPU (huge or non-finite samples), so every chunk is checked.
+ * Returns why the audio is bad, or null if it looks like speech.
+ */
+export function badAudio(pcm: Float32Array): string | null {
+  if (!pcm.length) return 'no samples';
+  let sum = 0;
+  let peak = 0;
+  for (let i = 0; i < pcm.length; i++) {
+    const x = pcm[i];
+    if (!Number.isFinite(x)) return 'non-finite samples';
+    sum += x * x;
+    if (Math.abs(x) > peak) peak = Math.abs(x);
+  }
+  const rms = Math.sqrt(sum / pcm.length);
+  if (peak > 4) return `samples out of range (peak ${peak.toExponential(1)})`;
+  if (pcm.length > 12000 && rms < 0.003) return `near-silent output (rms ${rms.toFixed(4)})`;
+  return null;
+}
+
+const PROBE = 'Good morning. This is a short check that the voice sounds right.';
+
 interface EnginePage {
   noteable?: { load(): Promise<{ device: string; dtype: string }>; generate(text: string, voice: string): Promise<string> };
 }
@@ -38,11 +61,21 @@ export class GpuEngine implements TtsEngine {
     await this.page.waitForFunction(() => !!(window as unknown as EnginePage).noteable, { timeout: 60_000 });
     const info = await this.page.evaluate(() => (window as unknown as EnginePage).noteable!.load());
     if (info.device !== 'webgpu') throw new Error(`Chrome has no WebGPU here (got ${info.device})`);
+    // Make sure the GPU actually produces speech before trusting it with a job.
+    const bad = badAudio(await this.raw(PROBE, 'af_bella'));
+    if (bad) throw new Error(`GPU voice output failed the check: ${bad}`);
     return { device: 'webgpu', dtype: info.dtype };
   }
 
   async generate(text: string, voice: string): Promise<Float32Array> {
     await this.load();
+    const pcm = await this.raw(text, voice);
+    const bad = badAudio(pcm);
+    if (bad) throw new Error(`GPU voice output failed the check: ${bad}`);
+    return pcm;
+  }
+
+  private async raw(text: string, voice: string): Promise<Float32Array> {
     const b64 = await this.page!.evaluate((t, v) => (window as unknown as EnginePage).noteable!.generate(t, v), text, voice);
     const bytes = Buffer.from(b64, 'base64');
     return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4).slice();
@@ -58,6 +91,10 @@ export class GpuEngine implements TtsEngine {
 /** GPU when it works, CPU otherwise. NOTEABLE_ENGINE=cpu forces the CPU. */
 export class AutoEngine implements TtsEngine {
   private active: TtsEngine | null = null;
+  /** 'GPU' or 'CPU' once loaded. */
+  get kind(): string | undefined {
+    return this.active === null ? undefined : this.active === this.gpu ? 'GPU' : 'CPU';
+  }
   private loaded: Promise<{ device: string; dtype: string }> | null = null;
 
   constructor(

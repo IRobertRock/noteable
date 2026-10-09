@@ -3,7 +3,7 @@ import { aboutMinutes, estimate, LONG_JOB_SEC, type Estimate } from '../generate
 import { playPcm, voiceSample } from '../generate/jobs';
 import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
 import { enterSleepMode } from '../sleep/sleepScreen';
-import { activeJobFor, listJobs, sendToDesktop, type JobView } from '../queue/jobs';
+import { activeJobFor, listJobs, markChapterForRegenerating, sendToDesktop, type JobView } from '../queue/jobs';
 import { applyGuide, dismissGuide, newGuide } from '../import/guideInItem';
 import { chapterProgress } from '../library/continue';
 import { describeWorker, isOnline, readWorkerStatus, type WorkerStatus } from '../queue/workerStatus';
@@ -227,6 +227,32 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
               { class: `pill ${c.status === 'done' ? 'found' : generating ? 'created' : ''}` },
               c.status === 'done' ? formatDuration(c.durationSec ?? 0) : generating ? `${Math.round((mine!.progress!.chapterFraction ?? 0) * 100)}%` : 'Not generated',
             ),
+            c.status === 'done' &&
+              !item.review &&
+              !mine?.running &&
+              !desktopJob &&
+              h(
+                'button',
+                {
+                  class: 'link-button small',
+                  'aria-label': `Regenerate chapter ${c.n}`,
+                  title: 'Regenerate this chapter',
+                  onclick: async () => {
+                    if (!confirm(`Make chapter ${c.n} (“${c.title}”) again? Useful after fixing a pronunciation or editing its text. The current audio plays until the new one is ready.`)) return;
+                    try {
+                      await app.reconnectNow();
+                      const updated = await markChapterForRegenerating(app.storage, itemPath, c.n);
+                      app.library.put({ path: itemPath, item: updated });
+                      showGenerate = true;
+                      message = `Chapter ${c.n} is ready to make again: choose this phone or the desktop below.`;
+                    } catch (err) {
+                      message = (err as Error).message;
+                    }
+                    render();
+                  },
+                },
+                '↻',
+              ),
           );
         }),
       ),

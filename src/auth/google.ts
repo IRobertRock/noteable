@@ -7,6 +7,7 @@
 
 import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES, TOKEN_MARGIN_MS } from '../config';
 import { kvDelete, kvGet, kvSet } from '../db';
+import { prefersRedirect, startRedirect, takeRedirectResult } from './redirect';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
@@ -69,8 +70,15 @@ export class GoogleAuth {
   private inflight: Promise<string> | null = null;
   private readonly listeners = new Set<Listener>();
 
+  /** Use full-page sign-in instead of popups (iPhone home-screen app, or chosen on the sign-in screen). */
+  useRedirect = prefersRedirect();
+  /** Set when a redirect sign-in came back with a problem. */
+  redirectError?: string;
+
   async load(): Promise<AuthState> {
     this.session = (await kvGet<Session>(SESSION_KEY)) ?? null;
+    const back = takeRedirectResult();
+    if (back) await this.finishRedirect(back);
     if (this.session && !this.tokenValid()) this.needsTap = true;
     void loadGis().catch(() => {}); // warm up; errors surface on sign-in
     return this.state;
@@ -142,8 +150,24 @@ export class GoogleAuth {
     return this.inflight;
   }
 
+  private async finishRedirect(r: ReturnType<typeof takeRedirectResult> & object): Promise<void> {
+    try {
+      if (r.error) throw new Error(r.error === 'access_denied' ? 'Sign-in was cancelled.' : r.error === 'state_mismatch' ? 'Sign-in reply did not match; please try again.' : `Sign-in failed (${r.error}).`);
+      if (!r.accessToken) throw new Error('Sign-in failed.');
+      if (!r.scope?.split(' ').includes(DRIVE_SCOPE)) throw new Error('Noteable needs access to your Google Drive. Sign in again and tick the Drive box.');
+      const profile = await fetchProfile(r.accessToken);
+      this.session = { accessToken: r.accessToken, expiresAt: Date.now() + (r.expiresIn ?? 3600) * 1000, ...profile };
+      await kvSet(SESSION_KEY, this.session);
+      this.needsTap = false;
+      this.useRedirect = true; // it worked this way; keep using it on this device
+    } catch (err) {
+      this.redirectError = (err as Error).message;
+    }
+  }
+
   private async doRequestToken(prompt: '' | 'consent'): Promise<string> {
     if (!GOOGLE_CLIENT_ID) throw new Error('Google client ID is not configured in src/config.ts');
+    if (this.useRedirect) return startRedirect({ clientId: GOOGLE_CLIENT_ID, scope: GOOGLE_SCOPES, loginHint: this.session?.email, consent: prompt === 'consent' });
     await loadGis();
     this.client ??= window.google!.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,

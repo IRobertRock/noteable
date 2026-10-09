@@ -141,7 +141,15 @@ function render(): void {
 
   const user = auth.user;
   if (auth.state === 'signed-out' || !user) {
-    mount(root, signInScreen({ busy: ui.busy, error: ui.error, onSignIn: signIn }));
+    mount(
+      root,
+      signInScreen({
+        busy: ui.busy,
+        error: ui.error ?? auth.redirectError,
+        onSignIn: signIn,
+        onRedirect: auth.useRedirect ? undefined : () => ((auth.useRedirect = true), void signIn()),
+      }),
+    );
     return;
   }
 

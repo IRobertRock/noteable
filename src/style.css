@@ -295,3 +295,8 @@ input[type='search'] { width: 100%; font-size: 1.05rem; padding: 12px 14px; bord
 .banner.answer-right { background: #217a4b33; }
 .banner.answer-close { background: #b5770d33; }
 .banner.answer-missed { background: #b3362b33; }
+
+/* ---- phase 13: desktop dashboard ---- */
+.dashboard { margin: 4px 0 12px; }
+.dashboard .recent { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.dashboard .recent li { margin: 3px 0; }

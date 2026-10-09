@@ -1,7 +1,8 @@
 // The desktop queue as the app sees it: Queue/<job-id>.json files.
 
 import { readJson, STALE_JOB_MS, writeJson, type Job, type Storage } from '../storage/Storage';
-import type { Item } from '../model/item';
+import { ITEM_FILE, type Item } from '../model/item';
+import type { IndexedItem } from '../library/libraryIndex';
 
 export type JobView = Job & { stalled: boolean; waitingMs: number; sinceHeartbeatMs?: number };
 
@@ -31,6 +32,34 @@ export async function sendToDesktop(storage: Storage, itemPath: string, item: It
   const chapters = item.chapters.filter((c) => !c.excluded && (c.status !== 'done' || voice !== item.voice)).map((c) => c.n);
   if (!chapters.length) throw new Error('Every chapter already has audio.');
   return storage.enqueue({ itemPath, chapters, voice });
+}
+
+/** Items in a course that still need audio and aren't already queued, oldest first. */
+export function itemsToSend(items: IndexedItem[], jobs: JobView[]): IndexedItem[] {
+  return items
+    .filter((x) => !x.item.review && x.item.chapters.some((c) => !c.excluded && c.status !== 'done'))
+    .filter((x) => !activeJobFor(jobs, x.path))
+    .sort((a, b) => a.item.createdAt.localeCompare(b.item.createdAt));
+}
+
+/** Send a whole course to the desktop: one job per item, each in its own voice. */
+export async function sendCollection(storage: Storage, items: IndexedItem[]): Promise<number> {
+  const todo = itemsToSend(items, await listJobs(storage));
+  for (const x of todo) await sendToDesktop(storage, x.path, x.item, x.item.voice);
+  return todo.length;
+}
+
+/** Marks one chapter for regenerating (e.g. after a pronunciation fix); the old audio plays until replaced. */
+export async function markChapterForRegenerating(storage: Storage, itemPath: string, n: number): Promise<Item> {
+  const file = `${itemPath}/${ITEM_FILE}`;
+  const item = await readJson<Item>(storage, file);
+  const c = item.chapters.find((x) => x.n === n);
+  if (!c) throw new Error(`No chapter ${n}`);
+  c.status = 'pending';
+  item.status = 'draft';
+  item.updatedAt = new Date().toISOString();
+  await writeJson(storage, file, item);
+  return item;
 }
 
 /** Cancel a job that hasn't started, or clear a finished one from the list. */
