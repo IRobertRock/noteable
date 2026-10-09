@@ -12,6 +12,22 @@ interface RenderablePage {
   render(o: { canvas: HTMLCanvasElement | null; canvasContext: CanvasRenderingContext2D; viewport: unknown }): { promise: Promise<void> };
 }
 
+/** OCR for single pictures (image-only slides). One Tesseract worker for the whole import. */
+export function imageOcr(): { read: (image: Blob) => Promise<string>; done: () => Promise<void> } {
+  let worker: Promise<import('tesseract.js').Worker> | null = null;
+  return {
+    async read(image) {
+      worker ??= import('tesseract.js').then((t) => t.createWorker('eng'));
+      const { data } = await (await worker).recognize(image);
+      return data.text;
+    },
+    async done() {
+      if (worker) await (await worker).terminate();
+      worker = null;
+    },
+  };
+}
+
 export const ocrPdf: OcrPages = async (doc, onProgress) => {
   const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('eng');

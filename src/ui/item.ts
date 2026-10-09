@@ -87,6 +87,17 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
           (pos && ready ? ` · ${Math.round(listenedFraction(entry, pos.chapter, pos.positionSec) * 100)}% listened` : ''),
         pos && !playingThis && h('span', { class: 'small' }, ` (last on ${pos.device})`),
       ),
+      item.voices &&
+        h(
+          'p',
+          { class: 'muted small' },
+          'Voices: ',
+          [['question', 'questions'], ['answer', 'answers'], ['heading', 'headings']]
+            .filter(([k]) => item.voices?.[k as 'question'])
+            .map(([k, label]) => `${VOICES.find((v) => v.id === item.voices?.[k as 'question'])?.name ?? item.voices?.[k as 'question']} for ${label}`)
+            .join(', '),
+          `; ${VOICES.find((v) => v.id === item.voice)?.name ?? item.voice} for the rest.`,
+        ),
       item.zotero && h('p', { class: 'muted small' }, `From Zotero: ${[item.zotero.authors, item.zotero.year, item.zotero.publication].filter(Boolean).join(' · ')}`),
       message && h('p', { class: 'error', role: 'alert' }, message),
       guide &&

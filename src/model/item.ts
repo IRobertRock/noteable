@@ -28,6 +28,8 @@ export interface Item {
   collection: string;
   mode: 'narrate' | 'teach';
   voice: string;
+  /** Extra voices from a guide header (`voices:`): questions, answers, and headings (narrator). */
+  voices?: { question?: string; answer?: string; heading?: string };
   /** File names in sources/. */
   sources: string[];
   chapters: Chapter[];

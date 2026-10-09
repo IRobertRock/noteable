@@ -4,6 +4,7 @@
 
 import { marked, type Token, type Tokens } from 'marked';
 import type { Block, RawDoc } from '../types';
+import { tableRowWithHeaders } from '../../tts/mathSpeech';
 
 export function readMarkdownDoc(markdown: string, title: string): RawDoc {
   const blocks: Block[] = [];
@@ -32,8 +33,8 @@ function walk(tokens: Token[], out: Block[]): void {
         break;
       case 'table': {
         const tb = t as Tokens.Table;
-        out.push({ kind: 'para', text: tb.header.map((c) => plain(c.text)).join(', ') });
-        for (const row of tb.rows) out.push({ kind: 'para', text: row.map((c) => plain(c.text)).join(', ') });
+        const headers = tb.header.map((c) => plain(c.text));
+        for (const row of tb.rows) out.push({ kind: 'para', text: tableRowWithHeaders(headers, row.map((c) => plain(c.text))) });
         break;
       }
     }

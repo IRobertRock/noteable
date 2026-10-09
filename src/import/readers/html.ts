@@ -1,6 +1,7 @@
 // Shared HTML/XHTML → blocks walker (DOCX via mammoth, EPUB chapters).
 
 import type { Block } from '../types';
+import { tableRowWithHeaders } from '../../tts/mathSpeech';
 
 const SKIP = new Set(['script', 'style', 'nav', 'figure', 'img', 'svg', 'math', 'head', 'title']);
 
@@ -35,9 +36,15 @@ export function htmlBlocks(root: Element, out: Block[], extra?: (el: Element) =>
       continue;
     }
     if (tag === 'table') {
-      for (const row of Array.from(el.querySelectorAll('tr'))) {
-        const cells = Array.from(row.children).map((c) => clean(c.textContent)).filter(Boolean);
-        if (cells.length) out.push({ kind: 'para', text: cells.join(', ') });
+      // Rows are read with their column headers when the table has a header row.
+      const rows = Array.from(el.querySelectorAll('tr'));
+      const first = rows[0];
+      const hasHeader = !!first && Array.from(first.children).every((c) => c.localName === 'th') && rows.length > 1;
+      const headers = hasHeader ? Array.from(first.children).map((c) => clean(c.textContent)) : [];
+      for (const row of hasHeader ? rows.slice(1) : rows) {
+        const cells = Array.from(row.children).map((c) => clean(c.textContent));
+        const text = tableRowWithHeaders(headers, cells);
+        if (text) out.push({ kind: 'para', text });
       }
       continue;
     }

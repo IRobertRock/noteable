@@ -3,6 +3,7 @@ import { VOICES } from '../model/voices';
 import { readSettings, updateSettings } from '../settings';
 import { ZoteroClient } from '../zotero/client';
 import { logTail } from '../log';
+import { pronunciationsSection } from './pronunciations';
 import { deviceName } from '../generate/jobs';
 import { LOG_REQUEST_PATH } from '../queue/logRequest';
 import { formatBytes } from './format';
@@ -142,6 +143,7 @@ export function settingsSection(app: App): HTMLElement {
     { class: 'settings' },
     h('h2', null, 'Settings'),
     h('label', { class: 'field' }, h('span', null, 'Default voice for new items'), select, voiceStatus),
+    pronunciationsSection(app),
     zotero,
     h('h2', null, 'This device'),
     storageLine,

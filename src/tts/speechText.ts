@@ -2,10 +2,19 @@
 
 import { marked, type Token, type Tokens } from 'marked';
 import { textToGroups } from './chunk';
+import { mathToWords, tableRowWithHeaders } from './mathSpeech';
+import { applyPronunciations, compileRules, type PronRule } from './pronounce';
 
 /** `mark` flags where a block starts ('q' = review question, 'a' = its answer), for Quiz me cue times. */
 export type SpeechMark = 'q' | 'a' | 'block';
-export type SpeechStep = { say: string; mark?: SpeechMark } | { pause: number };
+/** Who says it, for guides with several voices (header `voices:`). */
+export type SpeechRole = 'question' | 'answer' | 'heading';
+export type SpeechStep = { say: string; mark?: SpeechMark; role?: SpeechRole } | { pause: number };
+
+export interface SpeechOptions {
+  /** Pronunciation dictionary rules (State/pronunciations.json). */
+  pronunciations?: PronRule[];
+}
 
 /** Silence after a heading, between paragraphs, and between groups inside a paragraph. */
 export const GAP = { heading: 0.7, paragraph: 0.45, group: 0.12, chapterStart: 0.6 } as const;
@@ -18,9 +27,11 @@ const PAUSE_MARKER = /\[pause\s+(\d+(?:\.\d+)?)\s*s(?:ec(?:onds?)?)?\]/gi;
 const ANSWER = '';
 
 /** Internal: where a pause came from decides which one wins when several meet. */
-type Step = { say: string; mark?: SpeechMark } | { pause: number; from: 'gap' | 'marker' | 'answer' };
+type Step = { say: string; mark?: SpeechMark; role?: SpeechRole } | { pause: number; from: 'gap' | 'marker' | 'answer' };
 
-export function speechPlan(markdown: string): SpeechStep[] {
+export function speechPlan(markdown: string, opts: SpeechOptions = {}): SpeechStep[] {
+  const rules = compileRules(opts.pronunciations ?? []);
+  const spoken = (text: string) => applyPronunciations(mathToWords(text), rules);
   const steps: Step[] = [{ pause: GAP.chapterStart, from: 'gap' }];
   for (const block of blocks(marked.lexer(markdown))) {
     if (block.kind === 'pause') {
@@ -37,11 +48,18 @@ export function speechPlan(markdown: string): SpeechStep[] {
       }
       piece.split(ANSWER).forEach((part, k) => {
         if (k > 0) steps.push({ pause: ANSWER_PAUSE, from: 'answer' });
-        const groups = textToGroups(k > 0 ? `Answer. ${part.trim()}` : part);
+        const isQuestion = k === 0 && /^\s*Question\./.test(part);
+        const role: SpeechRole | undefined = block.kind === 'heading' ? 'heading' : k > 0 ? 'answer' : isQuestion ? 'question' : undefined;
+        // Maths and pronunciations apply to the words, not to the "Question."/"Answer." labels.
+        const body = isQuestion ? `Question. ${spoken(part.replace(/^\s*Question\.\s*/, ''))}` : spoken(part);
+        const groups = textToGroups(k > 0 ? `Answer. ${body.trim()}` : body);
         groups.forEach((g, j) => {
           const mark: SpeechMark | undefined = j === 0 && k > 0 ? 'a' : first ? (g.startsWith('Question.') ? 'q' : 'block') : undefined;
           first = false;
-          steps.push(mark ? { say: g, mark } : { say: g });
+          const step: Step = { say: g };
+          if (mark) step.mark = mark;
+          if (role) step.role = role;
+          steps.push(step);
           if (j < groups.length - 1) steps.push({ pause: GAP.group, from: 'gap' });
         });
       });
@@ -84,10 +102,10 @@ function blocks(tokens: Token[]): Block[] {
         out.push(...blocks((t as Tokens.Blockquote).tokens));
         break;
       case 'table': {
+        // Each row is read with its column headers: "Year: 2020; GDP: 1.2 trillion."
         const table = t as Tokens.Table;
-        const row = (cells: Tokens.TableCell[]) => sentence(cells.map((c) => inline(c.tokens)).join(', '));
-        out.push({ kind: 'para', text: row(table.header) });
-        for (const r of table.rows) out.push({ kind: 'para', text: row(r) });
+        const headers = table.header.map((c) => inline(c.tokens));
+        for (const r of table.rows) out.push({ kind: 'para', text: sentence(tableRowWithHeaders(headers, r.map((c) => inline(c.tokens)))) });
         break;
       }
       // code blocks, html, hr and spacing are not read aloud
@@ -164,7 +182,10 @@ function mergePauses(steps: Step[]): SpeechStep[] {
     if ('pause' in s) run.push(s);
     else {
       flush();
-      out.push(s.mark ? { say: s.say, mark: s.mark } : { say: s.say });
+      const step: SpeechStep = { say: s.say };
+      if (s.mark) step.mark = s.mark;
+      if (s.role) step.role = s.role;
+      out.push(step);
     }
   }
   flush();

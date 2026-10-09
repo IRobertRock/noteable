@@ -8,6 +8,7 @@ import { toVoiceId } from '../model/voices';
 import { readText, writeJson, type Entry, type Storage } from '../storage/Storage';
 import { speechPlan, spokenChars } from '../tts/speechText';
 import { parseGuide } from './markdown';
+import { guideVoices } from './importMarkdown';
 
 export const GUIDE_FILE = 'guide.md';
 
@@ -37,6 +38,7 @@ export async function applyGuide(storage: Storage, itemPath: string, item: Item,
     title: parsed.meta.title && parsed.meta.title !== 'guide' ? parsed.meta.title : item.title,
     mode: 'teach',
     voice: toVoiceId(parsed.meta.voice) ?? item.voice,
+    voices: guideVoices(parsed.meta.voices),
     chapters: parsed.chapters.map((c, i) => ({ n: i + 1, title: c.title, textFile: chapterFile('text', i + 1), chars: spokenChars(speechPlan(c.markdown)), status: 'pending' })),
     status: 'draft',
     error: undefined,

@@ -13,7 +13,11 @@ interface SlideSpec {
   body?: string[];
   notes?: string;
   layout?: 'title' | 'secHead' | 'obj';
+  /** Adds a picture (a 1×1 PNG) to the slide. */
+  image?: boolean;
 }
+
+const PNG_1X1 = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
 
 export async function buildPptx(slides: SlideSpec[], sections?: { name: string; slides: number[] }[]): Promise<ArrayBuffer> {
   const zip = new JSZip();
@@ -44,6 +48,10 @@ export async function buildPptx(slides: SlideSpec[], sections?: { name: string; 
     ].join('');
     zip.file(`ppt/slides/slide${n}.xml`, xml(`<p:sld ${P}><p:cSld><p:spTree>${shapes}</p:spTree></p:cSld></p:sld>`));
     const rels = [`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/${s.layout ?? 'obj'}.xml"/>`];
+    if (s.image) {
+      zip.file(`ppt/media/image${n}.png`, PNG_1X1);
+      rels.push(`<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${n}.png"/>`);
+    }
     if (s.notes) {
       rels.push(`<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide${n}.xml"/>`);
       zip.file(`ppt/notesSlides/notesSlide${n}.xml`, xml(`<p:notes ${P}><p:cSld><p:spTree>${sp('sldImg', [])}${sp('body', [s.notes])}${sp('sldNum', [String(n)])}</p:spTree></p:cSld></p:notes>`));

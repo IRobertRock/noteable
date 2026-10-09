@@ -7,6 +7,8 @@ export interface GuideMeta {
   collection: string;
   mode: 'narrate' | 'teach';
   voice?: string;
+  /** `voices: { question: am_michael, answer: Emma, narrator: Fable }` */
+  voices?: { question?: string; answer?: string; narrator?: string };
   sources?: string[];
 }
 
@@ -53,8 +55,10 @@ export function parseGuide(text: string, fileName: string): ParsedGuide {
   const mode = header.mode === 'teach' ? 'teach' : 'narrate';
   const sources = Array.isArray(header.sources) ? header.sources.map(String) : undefined;
 
+  const v = header.voices && typeof header.voices === 'object' && !Array.isArray(header.voices) ? (header.voices as Record<string, unknown>) : undefined;
+  const voices = v ? { question: str(v.question), answer: str(v.answer), narrator: str(v.narrator) } : undefined;
   return {
-    meta: { title, collection: str(header.collection) ?? 'General', mode, voice: str(header.voice), sources },
+    meta: { title, collection: str(header.collection) ?? 'General', mode, voice: str(header.voice), sources, ...(voices ? { voices } : {}) },
     chapters: splitChapters(body, title),
     warnings,
   };

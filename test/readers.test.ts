@@ -58,6 +58,23 @@ describe('PPTX', () => {
     expect(chapters.map((c) => c.title)).toEqual(['Intro', 'Examples']);
   });
 
+  it('reads picture-only slides with OCR, and leaves slides with text alone', async () => {
+    const seen: number[] = [];
+    const doc = await readPptx(
+      await buildPptx([
+        { title: 'Week 3', body: ['Opportunity cost'], layout: 'title' },
+        { title: 'Screenshot', image: true },
+        { title: 'Chart', body: ['Real text'], image: true },
+      ]),
+      'pics.pptx',
+      { ocrImage: async (blob) => (seen.push(blob.size), 'Text read from the picture.\n\nSecond paragraph.') },
+    );
+    const text = allText(cleanDoc(doc));
+    expect(seen).toHaveLength(1);
+    expect(text).toContain('Text read from the picture.\n\nSecond paragraph.');
+    expect(doc.ocrPages).toBe(1);
+  });
+
   it('falls back to groups of 10 slides', async () => {
     const plain = Array.from({ length: 23 }, (_, i) => ({ title: `Slide topic ${i + 1}`, body: [`Point ${i + 1}`] }));
     const chapters = cleanDoc(await readPptx(await buildPptx(plain), 'long.pptx'));
@@ -102,6 +119,18 @@ describe('EPUB', () => {
     expect(chapters[0].markdown).toMatch(/^## Chapter One\n\nCover\n\nFirst chapter\./);
     expect(chapters[0].markdown).toMatch(/Notes for this section\.\n\nNote 1: A note\.\n$/);
     expect(chapters[0].markdown.match(/Chapter One/g)).toHaveLength(1);
+  });
+});
+
+describe('tables in documents', () => {
+  it('reads HTML and markdown table rows with their headers', async () => {
+    const { htmlBlocks } = await import('../src/import/readers/html');
+    const doc = new DOMParser().parseFromString('<table><tr><th>Year</th><th>GDP</th></tr><tr><td>2020</td><td>1.2</td></tr></table>', 'text/html');
+    const out: { text: string }[] = [];
+    htmlBlocks(doc.body, out as never);
+    expect(out.map((b) => b.text)).toEqual(['Year: 2020; GDP: 1.2']);
+    const md = readMarkdownDoc('| Year | GDP |\n| --- | --- |\n| 2021 | 1.3 |\n', 'x');
+    expect(md.blocks.map((b) => b.text)).toEqual(['Year: 2021; GDP: 1.3']);
   });
 });
 

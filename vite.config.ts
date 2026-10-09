@@ -47,6 +47,23 @@ export default defineConfig({
         orientation: 'portrait',
         background_color: '#0b0d10',
         theme_color: '#0b0d10',
+        // Share to Noteable from other Android apps (links, text, documents).
+        share_target: {
+          action: `${base}share`,
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [
+              {
+                name: 'files',
+                accept: ['application/pdf', '.pdf', '.docx', '.pptx', '.epub', '.md', '.txt', 'text/plain', 'text/markdown', 'application/epub+zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+              },
+            ],
+          },
+        },
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
@@ -60,6 +77,8 @@ export default defineConfig({
         // The TTS engine is large and only needed when generating; it is cached on first use instead.
         globIgnores: ['spikes/**', 'assets/spike-*', 'assets/pipeline-*', 'assets/importcheck-*', 'assets/engine-*', 'assets/tts.worker-*', 'assets/import-*', 'assets/*.wasm'],
         navigateFallback: `${base}index.html`,
+        // Handles POSTs from the Android share sheet (see public/share-target.js).
+        importScripts: ['share-target.js'],
         // The test pages are real pages, not app routes.
         navigateFallbackDenylist: [/\/spikes\//],
         runtimeCaching: [],

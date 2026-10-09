@@ -217,3 +217,23 @@ describe('Quiz me cues', () => {
     expect(b.end).toBeLessThan(ch.durationSec!);
   });
 });
+
+describe('voices and pronunciations in generation', () => {
+  it('uses the header voices for questions, answers and headings, and the pronunciation list from Drive', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    await storage.write('State/pronunciations.json', JSON.stringify({ version: 1, rules: [{ from: 'Mankiw', to: 'Man-kyoo' }] }));
+    await storage.write('Inbox/v.md', '---\ntitle: V\nvoice: am_michael\nvoices:\n  question: Emma\n  answer: bf_lily\n  narrator: Fable\n---\n## Review\n**Q:** What did Mankiw say?\n\n**A:** Prices matter.\n\nPlain text.\n');
+    const { itemPath, item } = await importMarkdown(storage, 'Inbox/v.md');
+    expect(item.voices).toEqual({ question: 'bf_emma', answer: 'bf_lily', heading: 'bm_fable' });
+    const calls: [string, string][] = [];
+    const engine: TtsEngine = { load: async () => ({ device: 'cpu', dtype: 'fp32' }), generate: async (t, v) => (calls.push([t, v]), new Float32Array(2400)) };
+    await generateItem(itemPath, 'am_michael', deps(storage, engine));
+    expect(calls).toEqual([
+      ['Review.', 'bm_fable'],
+      ['Question. What did Man-kyoo say?', 'bf_emma'],
+      ['Answer. Prices matter.', 'bf_lily'],
+      ['Plain text.', 'am_michael'],
+    ]);
+  });
+});

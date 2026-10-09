@@ -11,6 +11,7 @@ import { readJson, readText, writeJson, type Storage } from '../storage/Storage'
 import type { CreateMp3Writer } from '../audio/mp3';
 import type { LoadProgress, TtsEngine } from '../tts/engine';
 import { speechPlan, spokenChars } from '../tts/speechText';
+import { readPronunciations } from '../tts/pronounce';
 import { hashText, type CheckpointStore, type PendingStore } from './pending';
 
 /** Save a mid-chapter checkpoint after this much new audio. */
@@ -66,7 +67,9 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
   const waiting = new Set((await pending.list(itemPath)).map((p) => p.n));
   const todo = item.chapters.filter((c) => c.status !== 'done' && !c.excluded && !waiting.has(c.n));
 
-  // Read all chapter text now: a long job can outlive the sign-in token.
+  // Read all chapter text (and the pronunciation list) now: a long job can outlive the sign-in token.
+  const pronunciations = await readPronunciations(storage);
+  const rulesKey = JSON.stringify(pronunciations);
   const texts = new Map<number, string>();
   for (const c of todo) texts.set(c.n, await readText(storage, `${itemPath}/${c.textFile}`));
 
@@ -114,8 +117,8 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
       report();
 
       const text = texts.get(ch.n) ?? '';
-      const textHash = hashText(text);
-      const plan = speechPlan(text);
+      const textHash = hashText(text + rulesKey);
+      const plan = speechPlan(text, { pronunciations });
       const total = Math.max(1, spokenChars(plan));
       const saved = await checkpoints?.get(itemPath, ch.n);
       const resume = saved && saved.voice === voice && saved.textHash === textHash ? saved : undefined;
@@ -134,7 +137,8 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
         }
         if (step.mark) cues?.mark(step.mark, writer.durationSec);
         const t0 = now();
-        const pcm = await engine.generate(step.say, voice);
+        // Multi-voice guides: questions, answers and headings can each have their own voice.
+        const pcm = await engine.generate(step.say, (step.role && item.voices?.[step.role]) || voice);
         genMs += now() - t0;
         writer.push(pcm);
         said += step.say.length;

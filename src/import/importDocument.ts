@@ -66,6 +66,8 @@ export interface ImportOptions {
   pdf?: PdfTools;
   /** Extra item.json fields (e.g. Zotero details). */
   extra?: Partial<Item>;
+  /** Image OCR for picture-only slides; tests inject a fake, the app uses Tesseract. */
+  ocrImage?: (image: Blob) => Promise<string>;
 }
 
 export interface DocumentImport {
@@ -151,8 +153,14 @@ export async function readFormat(format: Format, blob: Blob, name: string, opts:
     case 'docx':
       return fromRaw(await readDocx(await blob.arrayBuffer(), name));
     case 'pptx':
-    case 'gslides':
-      return fromRaw(await readPptx(await blob.arrayBuffer(), name));
+    case 'gslides': {
+      const ocr = opts.ocrImage ? null : (await import('./readers/ocr')).imageOcr();
+      try {
+        return fromRaw(await readPptx(await blob.arrayBuffer(), name, { ocrImage: opts.ocrImage ?? ocr!.read }));
+      } finally {
+        await ocr?.done();
+      }
+    }
     case 'epub':
       return fromRaw(await readEpub(await blob.arrayBuffer(), name));
     case 'pdf': {

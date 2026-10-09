@@ -120,8 +120,8 @@ describe('teach-mode answer pauses', () => {
   it('handles Q and A in the same paragraph', () => {
     const plan = speechPlan('**Q:** Up or down? **A:** Up.');
     expect(plan.filter((s) => 'say' in s)).toEqual([
-      { say: 'Question. Up or down?', mark: 'q' },
-      { say: 'Answer. Up.', mark: 'a' },
+      { say: 'Question. Up or down?', mark: 'q', role: 'question' },
+      { say: 'Answer. Up.', mark: 'a', role: 'answer' },
     ]);
     expect(plan[plan.findIndex((s) => 'say' in s && s.say.startsWith('Answer')) - 1]).toEqual({ pause: 5 });
   });
@@ -130,5 +130,40 @@ describe('teach-mode answer pauses', () => {
     expect(pauses('**Q:** a?\n\n[pause 2s]\n\n**A:** b.')).toContain(2);
     expect(pauses('**Q:** a?\n\n[pause 2s]\n\n**A:** b.')).not.toContain(5);
     expect(pauses('**Q:** a? [pause 8s] **A:** b.')).toContain(8);
+  });
+});
+
+describe('maths, tables and pronunciations', async () => {
+  const { mathToWords, tableRowWithHeaders } = await import('../src/tts/mathSpeech');
+  const { applyPronunciations, compileRules } = await import('../src/tts/pronounce');
+  const said = (md: string, pronunciations = [] as { from: string; to: string; regex?: boolean }[]) =>
+    speechPlan(md, { pronunciations }).filter((s) => 'say' in s).map((s) => (s as { say: string }).say);
+
+  it('reads simple maths as words, leaving words and dates alone', () => {
+    expect(mathToWords('Area = x^2 and volume y^3, growth e^-t')).toBe('Area equals x squared and volume y cubed, growth e to the power of minus t');
+    expect(mathToWords('If MC/MR ≤ 1 then 50% ≈ π')).toBe('If MC over MR less than or equal to 1 then 50 percent approximately pi');
+    expect(mathToWords('Due 1/2/2026, and/or km/h')).toBe('Due 1/2/2026, and/or km/h');
+    expect(mathToWords('a/b')).toBe('a over b');
+  });
+
+  it('reads table rows with their headers', () => {
+    expect(tableRowWithHeaders(['Year', 'GDP'], ['2020', '1.2 trillion'])).toBe('Year: 2020; GDP: 1.2 trillion');
+    expect(said('| Year | GDP |\n| --- | --- |\n| 2020 | 1.2 |\n| 2021 | 1.3 |\n')).toEqual(['Year: 2020; GDP: 1.2.', 'Year: 2021; GDP: 1.3.']);
+  });
+
+  it('applies pronunciations: whole words, capitals exact, regex allowed', () => {
+    const rules = compileRules([
+      { from: 'Mankiw', to: 'Man-kyoo' },
+      { from: 'PPF', to: 'P P F' },
+      { from: '\\bGDP\\b', to: 'G D P', regex: true },
+    ]);
+    expect(applyPronunciations('Mankiw says the PPF and GDP matter; mankiwish ppf stays.', rules)).toBe('Man-kyoo says the P P F and G D P matter; mankiwish ppf stays.');
+    expect(said('**Q:** What does Mankiw say?', [{ from: 'Mankiw', to: 'Man-kyoo' }])).toEqual(['Question. What does Man-kyoo say?']);
+  });
+
+  it('tags headings, questions and answers for multi-voice guides', () => {
+    const plan = speechPlan('## Review\n\n**Q:** One?\n\n**A:** Yes.\n\nPlain text.');
+    const roles = plan.filter((s) => 'say' in s).map((s) => (s as { role?: string }).role ?? 'narrator');
+    expect(roles).toEqual(['heading', 'question', 'answer', 'narrator']);
   });
 });

@@ -22,6 +22,7 @@ import { queueScreen } from './ui/queue';
 import { zoteroScreen } from './ui/zotero';
 import { flashcardsScreen } from './ui/flashcards';
 import { reviewScreen } from './ui/review';
+import { sharedScreen } from './ui/shared';
 import { itemScreen } from './ui/item';
 import { libraryScreen } from './ui/library';
 import { miniPlayer, playerScreen } from './ui/player';
@@ -75,6 +76,7 @@ type Route =
   | { name: 'queue' }
   | { name: 'zotero' }
   | { name: 'cards'; path: string }
+  | { name: 'shared' }
   | { name: 'review'; collection: string }
   | { name: 'item'; path: string }
   | { name: 'read'; path: string }
@@ -92,6 +94,7 @@ function route(): Route {
   if (hash === 'player') return { name: 'player' };
   if (hash === 'queue') return { name: 'queue' };
   if (hash === 'zotero') return { name: 'zotero' };
+  if (hash === 'shared') return { name: 'shared' };
   if (hash.startsWith('cards/')) return { name: 'cards', path: decodeURIComponent(hash.slice(6)) };
   if (hash.startsWith('review/')) return { name: 'review', collection: decodeURIComponent(hash.slice(7)) };
   return { name: 'library' };
@@ -120,6 +123,9 @@ function render(): void {
   switch (r.name) {
     case 'inbox':
       screen = inboxScreen(app);
+      break;
+    case 'shared':
+      screen = sharedScreen(app);
       break;
     case 'cards':
       screen = flashcardsScreen(app, r.path);
@@ -177,7 +183,7 @@ function render(): void {
         { class: 'tabs' },
         tab('#/', 'Library', inLibrary),
         tab('#/player', 'Player', r.name === 'player'),
-        tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive' || r.name === 'zotero'),
+        tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive' || r.name === 'zotero' || r.name === 'shared'),
         tab('#/queue', 'Queue', r.name === 'queue'),
         tab('#/account', 'Account', r.name === 'account'),
       ),

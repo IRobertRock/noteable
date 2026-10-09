@@ -16,9 +16,19 @@ interface Slide {
   body: string[];
   notes: string[];
   titleLayout: boolean;
+  /** Picture files on the slide (zip paths), for OCR when it has no text of its own. */
+  images: string[];
 }
 
-export async function readPptx(data: ArrayBuffer, fileName: string): Promise<RawDoc> {
+export interface PptxOptions {
+  /** Reads text from a picture (Tesseract in the browser). Without it, picture-only slides stay empty. */
+  ocrImage?: (image: Blob) => Promise<string>;
+}
+
+const OCR_FORMATS = /\.(png|jpe?g|gif|bmp|webp)$/i;
+const MAX_IMAGES_PER_SLIDE = 3;
+
+export async function readPptx(data: ArrayBuffer, fileName: string, opts: PptxOptions = {}): Promise<RawDoc> {
   const zip = await loadZip(data);
   const pres = parseXml(await text(zip, 'ppt/presentation.xml'));
   const presRels = await relsOf(zip, 'ppt/presentation.xml');
@@ -55,6 +65,21 @@ export async function readPptx(data: ArrayBuffer, fileName: string): Promise<Raw
     });
   }
 
+  // Slides whose content is only pictures (often screenshots of text): read the pictures with OCR.
+  let ocrSlides = 0;
+  if (opts.ocrImage) {
+    for (const s of slides) {
+      if (s.body.length || !s.images.length) continue;
+      for (const path of s.images.filter((p) => OCR_FORMATS.test(p)).slice(0, MAX_IMAGES_PER_SLIDE)) {
+        const bytes = await zip.file(path)?.async('uint8array');
+        if (!bytes) continue;
+        const text = (await opts.ocrImage(new Blob([bytes as BlobPart]))).trim();
+        if (text) s.body.push(...text.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter((p) => p.length > 1));
+      }
+      if (s.body.length) ocrSlides++;
+    }
+  }
+
   const blocks: Block[] = [];
   const useSections = sectionOf.size > 0 && new Set(sectionOf.values()).size > 1;
   const titleSlides = slides.filter((s) => s.titleLayout).length;
@@ -76,7 +101,7 @@ export async function readPptx(data: ArrayBuffer, fileName: string): Promise<Raw
 
   const first = slides[0];
   const title = first?.titleLayout && first.title ? first.title : fileName.replace(/\.[^.]+$/, '');
-  return { title, blocks, removed };
+  return { title, blocks, removed, ocrPages: ocrSlides };
 }
 
 async function readSlide(zip: Zip, path: string, id: string, removed: Removed[], page: number): Promise<Slide> {
@@ -116,7 +141,8 @@ async function readSlide(zip: Zip, path: string, id: string, removed: Removed[],
       notes.push(...byLocal(sp, 'p').map(paragraphText).filter(Boolean));
     }
   }
-  return { id, title, body, notes, titleLayout };
+  const images = [...rels.values()].filter((t) => t.includes('/media/'));
+  return { id, title, body, notes, titleLayout, images };
 }
 
 /** Text runs of one <a:p>, with line breaks as spaces and a full stop added to bullet fragments. */
