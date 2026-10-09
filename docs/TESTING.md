@@ -18,6 +18,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 7 | Study guides with answer pauses; Zotero import | **Not tested yet** |
 | 8 | Continue listening, Up next, skip silence, desktop status, problem reports, delete | **Not tested yet** |
 | 9 | Flashcards, Quiz me, highlights, Ask Claude, course reviews | **Not tested yet** |
+| 10 | GPU desktop, pronunciations, two voices, Share to Noteable, picture slides, maths/tables | **Not tested yet** |
 
 ---
 
@@ -165,6 +166,20 @@ Uses the Phase 7 guide (**ECON 1000 Week 3 — Opportunity Cost (study guide)**)
 - [ ] 4. Item → **Read** → select a sentence → **✎ Highlight** → add a note. It's marked yellow and shows in the margin and in the item's Bookmarks.
 - [ ] 5. On a Narrate item (e.g. **Phase 4 Gate Test**) → **🤖 Ask Claude for a study guide** → **Copy prompt**, paste it into Claude, and let Claude save guide.md. Reopen the item: it offers **Use the study guide**.
 - [ ] 6. Library → **ECON 1000** → **Build a review** → tick chapters from two items → **Create review**. The new item plays them in order straight away, with no generating.
+
+---
+
+## Phase 10 — voices, GPU, sharing (about 15 minutes)
+
+> Done when: "Mankiw" and "PPF" are said correctly in a regenerated chapter, a guide plays questions and answers in two voices, a page shared from Chrome lands in the Inbox, and the desktop logs GPU generation faster than 8.5×.
+
+- [ ] 1. Account → **Pronunciations** → **＋ Add**: `Mankiw` → `Man-kyoo`, and `PPF` → `P P F`. Type a sentence in the box underneath to check it, then **Save**.
+- [ ] 2. Regenerate a chapter that mentions them (or ask Claude for a short guide that does). They're said your way.
+- [ ] 3. Ask Claude for a guide whose header includes `voices:` with `question: Emma` and `answer: Michael` (or edit one). After import, the item says "Voices: Emma for questions, Michael for answers". Play **Review questions**: two different voices.
+- [ ] 4. In Chrome on the S23, open any article → ⋮ → **Share** → **Noteable**. Noteable opens on "Shared to Noteable" → **Save link to Inbox**, then **🤖 Copy prompt for Claude** and paste it into Claude. (If Noteable isn't in the share list, open the installed app once first; Android sometimes needs a reinstall after the manifest changes.)
+- [ ] 5. Share a PDF from Files or Gmail → Noteable → **Import**. The text preview opens.
+- [ ] 6. **Send to desktop** something long. On the PC, tray → **Open log**: you see "Voice engine: GPU (WebGPU in headless Chrome)", and "Done … at N× real time" with N above 8.5 for long items.
+- [ ] 7. Optional: import a slide deck that has screenshot-only slides; their text shows in the preview.
 
 ---
 
