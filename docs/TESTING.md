@@ -17,6 +17,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 6 | Send to desktop: the PC makes the audio while the phone is locked | **Not tested yet** (desktop set up and working; phone test to do) |
 | 7 | Study guides with answer pauses; Zotero import | **Not tested yet** |
 | 8 | Continue listening, Up next, skip silence, desktop status, problem reports, delete | **Not tested yet** |
+| 9 | Flashcards, Quiz me, highlights, Ask Claude, course reviews | **Not tested yet** |
 
 ---
 
@@ -149,6 +150,21 @@ If step 8 says it couldn't download the file: in Zotero, right-click the PDF →
 - [ ] 6. Queue tab: the top line says "Desktop online".
 - [ ] 7. Account → **Report a problem** → it says where the file was saved. Within a minute a "-worker.md" file appears next to it in Drive → Noteable/Logs.
 - [ ] 8. Open **Desktop Worker Test** → **Delete item…** → confirm. It's gone from the Library and in Drive's trash.
+
+---
+
+## Phase 9 — study tools (about 15 minutes)
+
+> Done when: Rob studies the phase 7 guide as flashcards, runs Quiz me across ECON 1000 with the phone locked, and builds a review item from two items.
+
+Uses the Phase 7 guide (**ECON 1000 Week 3 — Opportunity Cost (study guide)**). If you generated it before Oct 9, tap **Generate again** once so Quiz me knows where each question is.
+
+- [ ] 1. Item page → **🃏 Flashcards**. Tap a card to flip it; mark some **↺ Again** and some **✓ Knew it**. Go again: the "Again" cards come first.
+- [ ] 2. Library → **ECON 1000** heading → **🎧 Quiz me**. Lock the phone: you hear a question, the 5-second pause, the answer, then the next question. The lock-screen ⏭ skips to the next question.
+- [ ] 3. Play the guide normally afterwards: it resumes where you were before the quiz.
+- [ ] 4. Item → **Read** → select a sentence → **✎ Highlight** → add a note. It's marked yellow and shows in the margin and in the item's Bookmarks.
+- [ ] 5. On a Narrate item (e.g. **Phase 4 Gate Test**) → **🤖 Ask Claude for a study guide** → **Copy prompt**, paste it into Claude, and let Claude save guide.md. Reopen the item: it offers **Use the study guide**.
+- [ ] 6. Library → **ECON 1000** → **Build a review** → tick chapters from two items → **Create review**. The new item plays them in order straight away, with no generating.
 
 ---
 

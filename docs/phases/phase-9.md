@@ -1,6 +1,6 @@
 # Phase 9 — Study tools
 
-Status: **planned** (not started). Proposed by Claude on 2026-10-08 from Rob's "All 20" (upgrades 6–10). Not part of the original spec.
+Status: **built, gate not yet tested**. Deployed 2026-10-09; gate steps in `docs/TESTING.md`. Proposed by Claude on 2026-10-08 from Rob's "All 20" (upgrades 6–10). Not part of the original spec.
 
 ## Goal
 
@@ -22,13 +22,13 @@ I can study, not just listen: flip through flashcards made from my guides, run a
 
 ## Steps
 
-1. [ ] **Cue times at generation**: `generateItem` records `{ kind: 'q' | 'a', startSec, endSec }` per review question into `item.json` chapters (`cues`). Existing items get cues the next time they're generated; Quiz me says which items need it. (Worker restart.)
-2. [ ] `src/study/cards.ts` (parse terms/QA from chapter markdown), `src/ui/flashcards.ts`, `State/cards.json` sync (latest-wins per card id = hash of item + front text).
-3. [ ] `src/study/quiz.ts` + Player "Quiz me" mode: a playlist of `[chapter MP3, startSec, endSec]` segments; Media Session next = next question.
-4. [ ] Highlights: selection handling in `src/ui/reader.ts`, `Bookmark` gains `kind`/`text`/`offsets`, merge tests; margin display.
-5. [ ] `src/study/claudePrompt.ts` + item page button; prompt text reviewed with Rob before shipping.
-6. [ ] `src/study/review.ts`: build a review item from chapter picks; player/downloads/reader follow `sourceRefs` (audio and text read from the source item's folder).
-7. [ ] Commit, deploy, restart worker, docs, testing guide.
+1. [x] **Cue times at generation**: `generateItem` records `{ kind: 'q' | 'a', startSec, endSec }` per review question into `item.json` chapters (`cues`). Existing items get cues the next time they're generated; Quiz me says which items need it. (Worker restart.)
+2. [x] `src/study/cards.ts` (parse terms/QA from chapter markdown), `src/ui/flashcards.ts`, `State/cards.json` sync (latest-wins per card id = hash of item + front text).
+3. [x] `src/study/quiz.ts` + Player "Quiz me" mode: a playlist of `[chapter MP3, startSec, endSec]` segments; Media Session next = next question.
+4. [x] Highlights: selection handling in `src/ui/reader.ts`, `Bookmark` gains `kind`/`text`/`offsets`, merge tests; margin display.
+5. [x] `src/study/claudePrompt.ts` + item page button; prompt text reviewed with Rob before shipping.
+6. [x] `src/study/review.ts`: build a review item from chapter picks; player/downloads/reader follow `sourceRefs` (audio and text read from the source item's folder).
+7. [x] Commit, deploy, restart worker, docs, testing guide.
 
 ## Tests
 
@@ -41,6 +41,18 @@ I can study, not just listen: flip through flashcards made from my guides, run a
 
 ## Open questions
 
-1. Flashcards: are Key terms + Q/A enough sources, or should any bold phrase become a card?
-2. Quiz me: random order, or guide order?
-3. The Claude prompt for study guides: should it ask for a fixed number of review questions (e.g. 8–12), or leave length to Claude as the spec says ("length set by how much there is to teach")?
+1. Flashcards: Key terms and Q/A only (Rob: go).
+2. Quiz me: random order (Rob: go).
+3. Claude prompt: length left to Claude, as the spec says (Rob: go).
+
+## Change log
+
+- 2026-10-09: built and deployed.
+- **Cues:** speech steps now carry a mark (`block`, `q` for "Question…", `a` for the answer). The generator records the time at each mark, and `CueRecorder` turns them into segments from a question to the start of the next block after its answer (or the chapter end). Chapters resumed from a mid-chapter checkpoint get no cues; the next full generation adds them. Teach items generated before this show "Generate again to enable Quiz me". The worker was restarted so desktop jobs record cues too.
+- **Flashcards:** `- **Term:** definition` (colon inside or after the bold) and `**Q:**` / `**A:**` pairs, including Q and A in one paragraph and with `[pause]` markers between. The card id is a hash of item id + front text, so results survive regeneration. Leitner boxes 1–5 in `State/cards.json`: box 1 ("again") first, then new cards, then higher boxes.
+- **Quiz me:** a player mode over `{item, chapter, start, end}` segments, shuffled. It doesn't save positions (your resume point is untouched), lock-screen next/previous move between questions, and it stops after the last question. Available per item (Teach items with cues) and per collection (Library heading).
+- **Highlights** are bookmarks with `kind: 'highlight'` and `text`. Select text in the reading view, then the floating **✎ Highlight** button, with an optional note. They're marked in the text (first match within a paragraph), shown in the margin, and listed with bookmarks on the item and player pages.
+- **Ask Claude for a study guide** (Narrate items): a dialog with the prompt and a Copy button. Text is inlined up to 30,000 characters; above that, Claude is pointed at `text/` in Drive. It asks for the phase 7 guide format, so the guide.md banner picks the result up.
+- **Course reviews:** chapters get an optional `src` (source item folder); `Downloads` reads text and audio from `src`. A review item has `review: true`, status ready, no Generate/Edit, and keeps cues so it can be quizzed. Built from Library → collection → **Build a review**.
+- **Browser check (pipeline page):** a review chapter's cue (3.2–17.1 s) plays inside the segment and the quiz ends after the last question.
+- Tests: 151.
