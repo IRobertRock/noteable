@@ -7,7 +7,7 @@ import { itemHash, type App } from '../app';
 import { formatDuration } from './format';
 import { fill, h } from './h';
 
-export function readerScreen(app: App, path: string): HTMLElement {
+export function readerScreen(app: App, path: string, openChapter?: number, find?: string): HTMLElement {
   const screen = h('section', { class: 'screen reader' }, h('p', { class: 'muted' }, 'Loading…'));
   const entry = app.library.byPath(path);
   if (!entry) {
@@ -73,6 +73,7 @@ export function readerScreen(app: App, path: string): HTMLElement {
     }
     fill(screen, ...parts, highlightButton);
     markCurrent();
+    if (openChapter !== undefined) scrollToFind(sections.get(openChapter), find);
   })();
 
   // Highlights: select text in a chapter, then tap ✎ Highlight.
@@ -103,6 +104,24 @@ export function readerScreen(app: App, path: string): HTMLElement {
 
   app.onLeave(app.player.onChange(markCurrent));
   return screen;
+}
+
+/** Scrolls to the first block in the chapter containing all the words of `find` (else the chapter). */
+function scrollToFind(section: HTMLElement | undefined, find?: string): void {
+  if (!section) return;
+  let target: HTMLElement = section;
+  if (find) {
+    const words = find.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+    const phrase = find.toLowerCase().replace(/\s+/g, ' ').trim();
+    const blocks = Array.from(section.querySelectorAll<HTMLElement>('p, li, blockquote, td, h2, h3'));
+    const text = (b: HTMLElement) => (b.textContent ?? '').toLowerCase().replace(/\s+/g, ' ');
+    const hit = blocks.find((b) => text(b).includes(phrase)) ?? blocks.find((b) => words.every((w) => text(b).includes(w)));
+    if (hit) {
+      hit.classList.add('found');
+      target = hit;
+    }
+  }
+  requestAnimationFrame(() => target.scrollIntoView({ block: 'center' }));
 }
 
 /** Wraps the first occurrence of `text` (within one paragraph) in <mark>. */

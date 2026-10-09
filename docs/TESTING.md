@@ -20,6 +20,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 9 | Flashcards, Quiz me, highlights, Ask Claude, course reviews | **Not tested yet** |
 | 10 | GPU desktop, pronunciations, two voices, Share to Noteable, picture slides, maths/tables | **Not tested yet** |
 | 11 | Smart rewind, car mode, auto-download on Wi-Fi, voice samples, light theme, safety copies | **Not tested yet** |
+| 12 | Search, say your answer, exam countdown, glossary, export notes, recap | **Not tested yet** |
 
 ---
 
@@ -195,6 +196,21 @@ Uses the Phase 7 guide (**ECON 1000 Week 3 — Opportunity Cost (study guide)**)
 - [ ] 5. Account → **Theme** → **Light**. The whole app turns light. Try **Reading text size** → Large, then open **Read** on an item.
 - [ ] 6. The day after first using this version, Account → **Safety copies** lists yesterday. Choose it → **Restore** → confirm. The app reloads with that day's positions.
 - [ ] 7. Generate a new chapter with two different voices (or a multi-voice guide). The volume is even between them.
+
+---
+
+## Phase 12 — search and study planning (about 15 minutes)
+
+> Done when: Rob finds a phrase from a reading with Search and jumps to it, answers three Quiz me questions out loud, sets an exam date and follows the Today list, generates a course glossary, and opens exported notes as a Google Doc.
+
+- [ ] 1. Library → **🔍 Search**. Type a phrase you remember from a reading. The first time, it fetches chapter text for a minute ("Indexed N of M"). Tap **Read**: the reader opens at that paragraph, outlined. Try **▶ Play chapter** too.
+- [ ] 2. Search for a word in one of your highlights. It shows first, marked ✎ Highlight.
+- [ ] 3. Open a study guide → **Generate again** (Say your answer needs new audio). Then **🎧 Quiz me** → in the Player banner tick **🎤 Say your answer** → OK. Keep the screen on. After each question and pause, say your answer: you see ✓ / ≈ / ✗ with what it heard, then the answer plays. Do three.
+- [ ] 4. Library → a course → **📅 Set exam date** → pick a date about a week away → **Save**. A **Today** panel appears at the top, and the Library tab gets a number.
+- [ ] 5. Play an item from Today to the end. It drops off Today's list.
+- [ ] 6. Course with study guides → **📖 Make glossary**. A "<Course> glossary" item opens with A–E… chapters. **Flashcards** works on it.
+- [ ] 7. Course → **📝 Export notes** → **Open the Google Doc**. Your highlights, bookmark notes and "again" flashcards are there.
+- [ ] 8. Leave an item for 3+ days, then open it. The Player offers **▶ Recap** (a guide's Recap chapter, or the last minute).
 
 ---
 

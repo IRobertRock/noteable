@@ -16,7 +16,7 @@ export interface Chapter {
   /** Left out of audio and reading (set in the preview). */
   excluded?: boolean;
   /** Review-question segments in this chapter's audio (question start → end of answer), for Quiz me. */
-  cues?: { start: number; end: number }[];
+  cues?: { start: number; end: number; /** where the answer starts (after the pause) */ answer?: number }[];
   /** For review items: the item folder this chapter's text and audio live in. */
   src?: string;
 }

@@ -31,6 +31,18 @@ export function mergeCards(a: CardsDoc, b: CardsDoc): CardsDoc {
   return { version: 1, cards };
 }
 
+/** Exam dates per collection (YYYY-MM-DD; '' = removed), synced as State/exams.json (latest wins per collection). */
+export interface ExamsDoc {
+  version: 1;
+  exams: Record<string, { date: string; updatedAt: string }>;
+}
+
+export function mergeExams(a: ExamsDoc, b: ExamsDoc): ExamsDoc {
+  const exams = { ...a.exams };
+  for (const [k, e] of Object.entries(b.exams ?? {})) if (!exams[k] || e.updatedAt > exams[k].updatedAt) exams[k] = e;
+  return { version: 1, exams };
+}
+
 /** Items lined up to play after the current one (item ids), synced as State/upnext.json. */
 export interface UpNextDoc {
   version: 1;
@@ -116,6 +128,7 @@ interface Synced<T> {
 
 const CARDS: Synced<CardsDoc> = { path: 'State/cards.json', key: 'state.cards', empty: { version: 1, cards: {} }, merge: mergeCards };
 const UPNEXT: Synced<UpNextDoc> = { path: 'State/upnext.json', key: 'state.upnext', empty: { version: 1, items: [], updatedAt: '' }, merge: mergeUpNext };
+const EXAMS: Synced<ExamsDoc> = { path: 'State/exams.json', key: 'state.exams', empty: { version: 1, exams: {} }, merge: mergeExams };
 const PLAYBACK: Synced<PlaybackDoc> = { path: 'State/playback.json', key: 'state.playback', empty: { version: 1, items: {} }, merge: mergePlayback };
 const BOOKMARKS: Synced<BookmarkDoc> = { path: 'State/bookmarks.json', key: 'state.bookmarks', empty: { version: 1, bookmarks: [] }, merge: mergeBookmarks };
 
@@ -133,6 +146,7 @@ export class StateStore {
   bookmarks: BookmarkDoc = BOOKMARKS.empty;
   upNext: UpNextDoc = UPNEXT.empty;
   cards: CardsDoc = CARDS.empty;
+  exams: ExamsDoc = EXAMS.empty;
   private readonly listeners = new Set<Listener>();
   private syncing: Promise<void> | null = null;
 
@@ -148,6 +162,7 @@ export class StateStore {
     this.bookmarks = (await this.kv.get<BookmarkDoc>(BOOKMARKS.key)) ?? BOOKMARKS.empty;
     this.upNext = (await this.kv.get<UpNextDoc>(UPNEXT.key)) ?? UPNEXT.empty;
     this.cards = (await this.kv.get<CardsDoc>(CARDS.key)) ?? CARDS.empty;
+    this.exams = (await this.kv.get<ExamsDoc>(EXAMS.key)) ?? EXAMS.empty;
     this.emit();
   }
 
@@ -188,6 +203,17 @@ export class StateStore {
     const b: Bookmark = { id: crypto.randomUUID(), itemId, chapter, positionSec: 0, note, kind: 'highlight', text: text.slice(0, 1000), createdAt: at, updatedAt: at };
     await this.putBookmark(b);
     return b;
+  }
+
+  examDate(collection: string): string | undefined {
+    return this.exams.exams[collection]?.date || undefined;
+  }
+
+  /** Sets (YYYY-MM-DD) or clears ('') a collection's exam date. */
+  async setExam(collection: string, date: string): Promise<void> {
+    this.exams = { version: 1, exams: { ...this.exams.exams, [collection]: { date, updatedAt: this.now().toISOString() } } };
+    await this.kv.set(EXAMS.key, this.exams);
+    this.emit();
   }
 
   /** Replaces the Up next list (item ids, in play order). */
@@ -239,6 +265,7 @@ export class StateStore {
         this.bookmarks = await this.syncDoc(BOOKMARKS, this.bookmarks);
         this.upNext = await this.syncDoc(UPNEXT, this.upNext);
         this.cards = await this.syncDoc(CARDS, this.cards);
+        this.exams = await this.syncDoc(EXAMS, this.exams);
         this.emit();
       } finally {
         this.syncing = null;

@@ -2,6 +2,11 @@ import './style.css';
 import { registerSW } from 'virtual:pwa-register';
 import { installErrorLogging, logLine } from './log';
 import { applyAppearance, watchSystemTheme } from './ui/theme';
+import { SearchIndexer, type SearchDoc } from './search/searchIndex';
+import { searchScreen } from './ui/search';
+import { spokenAnswerHook } from './ui/studyActions';
+import { coursePlan } from './study/plan';
+import { idbAll, idbDelete, idbPut } from './db';
 import { backupIfDue } from './sync/backups';
 import { onWifi, planAutoDownloads } from './offline/autoDownload';
 import { listJobs } from './queue/jobs';
@@ -50,6 +55,14 @@ const state = new StateStore(storage, deviceName());
 const library = new LibraryIndex(storage);
 const downloads = new Downloads(storage);
 const player = new Player(downloads, state, new URL(`${import.meta.env.BASE_URL}pwa-512x512.png`, location.href).href, (id) => library.byId(id));
+const search = new SearchIndexer(
+  {
+    all: () => idbAll<SearchDoc>('search'),
+    put: (doc) => idbPut('search', doc.key, doc),
+    delete: (key) => idbDelete('search', key),
+  },
+  (entry, n) => downloads.text(entry, n),
+);
 installErrorLogging();
 
 let leaveFns: (() => void)[] = [];
@@ -66,7 +79,9 @@ const app: App = {
   reconnectNow,
   freshFor: (minutes) => auth.ensureFresh(Math.min(55, minutes) * 60_000).catch(() => {}),
   defaultVoice,
+  search,
 };
+player.answerHook = spokenAnswerHook(app);
 
 const ui = {
   busy: false,
@@ -86,14 +101,19 @@ type Route =
   | { name: 'shared' }
   | { name: 'review'; collection: string }
   | { name: 'item'; path: string }
-  | { name: 'read'; path: string }
+  | { name: 'read'; path: string; chapter?: number; find?: string }
+  | { name: 'search' }
   | { name: 'edit'; path: string }
   | { name: 'drive'; folderId?: string };
 
 function route(): Route {
   const hash = location.hash.replace(/^#\/?/, '');
   if (hash.startsWith('item/')) return { name: 'item', path: decodeURIComponent(hash.slice(5)) };
-  if (hash.startsWith('read/')) return { name: 'read', path: decodeURIComponent(hash.slice(5)) };
+  if (hash.startsWith('read/')) {
+    const [p, ch, find] = hash.slice(5).split('/');
+    return { name: 'read', path: decodeURIComponent(p), chapter: ch ? Number(ch) : undefined, find: find ? decodeURIComponent(find) : undefined };
+  }
+  if (hash === 'search') return { name: 'search' };
   if (hash.startsWith('edit/')) return { name: 'edit', path: decodeURIComponent(hash.slice(5)) };
   if (hash === 'drive' || hash.startsWith('drive/')) return { name: 'drive', folderId: hash.length > 6 ? decodeURIComponent(hash.slice(6)) : undefined };
   if (hash === 'inbox') return { name: 'inbox' };
@@ -156,7 +176,10 @@ function render(): void {
       screen = itemScreen(app, r.path);
       break;
     case 'read':
-      screen = readerScreen(app, r.path);
+      screen = readerScreen(app, r.path, r.chapter, r.find);
+      break;
+    case 'search':
+      screen = searchScreen(app);
       break;
     case 'player':
       screen = playerScreen(app);
@@ -176,7 +199,8 @@ function render(): void {
       screen = libraryScreen(app);
   }
 
-  const inLibrary = ['library', 'item', 'read', 'edit', 'cards', 'review'].includes(r.name);
+  const inLibrary = ['library', 'item', 'read', 'edit', 'cards', 'review', 'search'].includes(r.name);
+  const due = dueToday();
   mount(
     root,
     banners(),
@@ -188,7 +212,7 @@ function render(): void {
       h(
         'nav',
         { class: 'tabs' },
-        tab('#/', 'Library', inLibrary),
+        tab('#/', 'Library', inLibrary, due),
         tab('#/player', 'Player', r.name === 'player'),
         tab('#/inbox', 'Inbox', r.name === 'inbox' || r.name === 'drive' || r.name === 'zotero' || r.name === 'shared'),
         tab('#/queue', 'Queue', r.name === 'queue'),
@@ -199,8 +223,24 @@ function render(): void {
   window.scrollTo(0, 0);
 }
 
-function tab(href: string, label: string, active: boolean): HTMLElement {
-  return h('a', { href, class: active ? 'active' : undefined, 'aria-current': active ? 'page' : undefined }, label);
+function tab(href: string, label: string, active: boolean, badge = 0): HTMLElement {
+  return h(
+    'a',
+    { href, class: active ? 'active' : undefined, 'aria-current': active ? 'page' : undefined },
+    label,
+    badge > 0 && h('span', { class: 'badge', 'aria-label': `${badge} due today` }, String(badge)),
+  );
+}
+
+/** Items to listen to today across courses with an upcoming exam (Library tab badge). */
+function dueToday(): number {
+  let n = 0;
+  for (const c of library.collections) {
+    const date = state.examDate(c);
+    if (!date) continue;
+    n += coursePlan(library.items.filter((x) => x.item.collection === c), state.playback, date)?.today.length ?? 0;
+  }
+  return n;
 }
 
 function banners(): HTMLElement {
@@ -249,6 +289,7 @@ async function syncAll(): Promise<void> {
   if (!navigator.onLine || auth.state !== 'signed-in') return;
   const results = await Promise.allSettled([state.sync(), library.refreshChanges()]);
   for (const r of results) if (r.status === 'rejected') logLine('Sync with Drive failed', r.reason);
+  void search.update(library.items, 20).catch(() => {});
   void backupIfDue(storage).catch((err) => logLine('Daily safety copy failed', err));
   void runAutoDownloads().catch((err) => logLine('Auto-download failed', err));
 }

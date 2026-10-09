@@ -173,7 +173,7 @@ export function settingsSection(app: App): HTMLElement {
       await app.reconnectNow();
       const done = await restoreBackup(app.storage, day);
       // Drop this device's copies so the restored files win on the next sync.
-      for (const k of ['state.playback', 'state.bookmarks', 'state.cards', 'state.upnext']) await kvSet(k, undefined);
+      for (const k of ['state.playback', 'state.bookmarks', 'state.cards', 'state.upnext', 'state.exams']) await kvSet(k, undefined);
       restoreStatus.textContent = `Restored ${done.length} files. Reloading…`;
       setTimeout(() => location.reload(), 800);
     } catch (err) {

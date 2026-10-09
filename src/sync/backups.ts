@@ -5,7 +5,7 @@
 import { kvGet, kvSet } from '../db';
 import type { Storage } from '../storage/Storage';
 
-export const BACKED_UP = ['playback.json', 'bookmarks.json', 'cards.json', 'upnext.json'] as const;
+export const BACKED_UP = ['playback.json', 'bookmarks.json', 'cards.json', 'upnext.json', 'exams.json'] as const;
 export const KEEP_DAYS = 7;
 const LAST_KEY = 'backups.lastDay';
 

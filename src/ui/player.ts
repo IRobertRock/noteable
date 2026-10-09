@@ -4,6 +4,20 @@ import { SPEEDS, type Bookmark } from '../sync/state';
 import { formatDuration } from './format';
 import { fill, h } from './h';
 import { openCarMode } from './carMode';
+import { speechSupported } from '../study/speechAnswer';
+import type { AnswerResult } from '../player/player';
+
+function answerBanner(r: AnswerResult): HTMLElement {
+  if (r.score === 'error') return h('div', { class: 'banner error', role: 'status' }, r.message ?? 'Could not listen.');
+  const head = r.score === 'right' ? '✓ Got it' : r.score === 'close' ? '≈ Close' : r.said ? '✗ Not quite' : '… Didn\'t catch that';
+  return h(
+    'div',
+    { class: `banner answer-${r.score}`, role: 'status' },
+    h('strong', null, head),
+    r.said && h('div', { class: 'small' }, `You said: “${r.said}”`),
+    h('div', { class: 'small muted' }, `Answer: ${r.expected}`),
+  );
+}
 
 /** Slim bar above the tabs while something is loaded. Updated in place so taps aren't lost. */
 export function miniPlayer(app: App): HTMLElement {
@@ -38,7 +52,7 @@ export function playerScreen(app: App): HTMLElement {
 
   // Position ticks only move the slider and times; everything else redraws the screen.
   const tick = (s: PlayerState) => {
-    const key = [s.entry?.item.id, s.chapter, s.playing, s.loading, s.speed, s.error, Math.round(s.duration), s.quiz?.index].join('|');
+    const key = [s.entry?.item.id, s.chapter, s.playing, s.loading, s.speed, s.error, Math.round(s.duration), s.quiz?.index, s.quiz?.listening, s.quiz?.result?.score, s.quiz?.spoken, s.recap?.kind].join('|');
     if (key !== lastKey) {
       lastKey = key;
       render(s);
@@ -86,6 +100,35 @@ export function playerScreen(app: App): HTMLElement {
           h('span', null, h('strong', null, `Quiz me: question ${s.quiz.index + 1} of ${s.quiz.total}`)),
           h('button', { class: 'small', onclick: () => void app.player.quizStep(1) }, 'Next ›'),
           h('button', { class: 'small', onclick: () => app.player.stopQuiz() }, 'Stop'),
+          speechSupported() &&
+            h(
+              'label',
+              { class: 'check small' },
+              h('input', {
+                type: 'checkbox',
+                checked: s.quiz.spoken,
+                onchange: (e: Event) => {
+                  const on = (e.target as HTMLInputElement).checked;
+                  if (on && !confirm('Say your answer uses Google speech recognition: your spoken answer is sent to Google to be turned into text. Keep the screen on while answering. Turn it on?')) {
+                    (e.target as HTMLInputElement).checked = false;
+                    return;
+                  }
+                  app.player.setSpokenAnswers(on);
+                },
+              }),
+              ' 🎤 Say your answer',
+            ),
+        ),
+      s.quiz?.listening && h('div', { class: 'banner listening', role: 'status' }, '🎤 Listening… say your answer'),
+      s.quiz?.result && answerBanner(s.quiz.result),
+      s.recap &&
+        !s.quiz &&
+        h(
+          'div',
+          { class: 'banner action' },
+          h('span', null, `It's been ${s.recap.daysAway} days. `, h('strong', null, s.recap.kind === 'chapter' ? `Play “${s.recap.title}” first?` : 'Hear the last minute again first?')),
+          h('button', { class: 'small primary', onclick: () => void app.player.playRecap() }, '▶ Recap'),
+          h('button', { class: 'small', onclick: () => app.player.dismissRecap() }, 'No thanks'),
         ),
       scrub,
       times,

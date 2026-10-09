@@ -6,6 +6,7 @@ import type { Downloads } from './offline/downloads';
 import type { Player } from './player/player';
 import type { Storage } from './storage/Storage';
 import type { StateStore } from './sync/state';
+import type { SearchIndexer } from './search/searchIndex';
 
 export interface App {
   storage: Storage;
@@ -14,6 +15,7 @@ export interface App {
   library: LibraryIndex;
   downloads: Downloads;
   player: Player;
+  search: SearchIndexer;
   go(hash: string): void;
   /** Runs `fn` when the current screen is replaced (unsubscribe listeners here). */
   onLeave(fn: () => void): void;
@@ -26,4 +28,6 @@ export interface App {
 
 export const itemHash = (path: string) => `#/item/${encodeURIComponent(path)}`;
 export const readHash = (path: string) => `#/read/${encodeURIComponent(path)}`;
+/** Reader opened at a chapter, scrolled to the first paragraph containing `find`. */
+export const readHashAt = (path: string, chapter: number, find = '') => `#/read/${encodeURIComponent(path)}/${chapter}${find ? `/${encodeURIComponent(find.slice(0, 200))}` : ''}`;
 export const editHash = (path: string) => `#/edit/${encodeURIComponent(path)}`;

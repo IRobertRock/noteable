@@ -4,13 +4,14 @@
 //   items     the library index (item.json + its Drive path), for offline browsing
 //   texts     chapter text of downloaded items
 //   checkpoints  part-finished chapters, so a killed page resumes mid-chapter
+//   search    chapter text of every item, for Search (fetched once per version)
 
 import { openDB, type IDBPDatabase } from 'idb';
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function db(): Promise<IDBPDatabase> {
-  dbPromise ??= openDB('noteable', 4, {
+  dbPromise ??= openDB('noteable', 5, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) d.createObjectStore('kv');
       if (oldVersion < 2) d.createObjectStore('pending');
@@ -19,6 +20,7 @@ function db(): Promise<IDBPDatabase> {
         d.createObjectStore('texts');
       }
       if (oldVersion < 4) d.createObjectStore('checkpoints');
+      if (oldVersion < 5) d.createObjectStore('search');
     },
   });
   return dbPromise;

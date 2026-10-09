@@ -208,22 +208,30 @@ async function uploadPending(itemPath: string, item: Item, storage: Storage, pen
 
 /** Turns block marks into Quiz me segments: from a question to the end of its answer. */
 export class CueRecorder {
-  private readonly out: { start: number; end: number }[] = [];
-  private open: { start: number; answered: boolean } | null = null;
+  private readonly out: { start: number; end: number; answer?: number }[] = [];
+  private open: { start: number; answered: boolean; answer?: number } | null = null;
 
   mark(kind: 'q' | 'a' | 'block', at: number): void {
     if (kind === 'a') {
-      if (this.open) this.open.answered = true;
+      if (this.open && !this.open.answered) {
+        this.open.answered = true;
+        this.open.answer = round(at);
+      }
       return;
     }
     // A new paragraph or question closes an answered question.
-    if (this.open?.answered) this.out.push({ start: round(this.open.start), end: round(at) });
+    if (this.open?.answered) this.out.push(this.cue(at));
     if (kind === 'q') this.open = { start: Math.max(0, at - 0.1), answered: false };
     else if (this.open?.answered) this.open = null;
   }
 
-  finish(end: number): { start: number; end: number }[] {
-    if (this.open?.answered) this.out.push({ start: round(this.open.start), end: round(end) });
+  private cue(end: number): { start: number; end: number; answer?: number } {
+    const o = this.open!;
+    return { start: round(o.start), end: round(end), ...(o.answer !== undefined ? { answer: o.answer } : {}) };
+  }
+
+  finish(end: number): { start: number; end: number; answer?: number }[] {
+    if (this.open?.answered) this.out.push(this.cue(end));
     this.open = null;
     return this.out;
   }

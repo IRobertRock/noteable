@@ -9,6 +9,8 @@ import { continueListening } from '../library/continue';
 import { quizSegments, shuffle } from '../study/quiz';
 import { formatDuration } from './format';
 import { fill, h } from './h';
+import { coursePlan, examLabel, cardsDue } from '../study/plan';
+import { exportNotesButton, glossaryButton, itemCards } from './studyActions';
 
 const REFRESH_MS = 120_000;
 
@@ -17,9 +19,95 @@ export function libraryScreen(app: App): HTMLElement {
   const shelf = h('div');
   const body = h('div');
   const refreshBtn = h('button', { class: 'small', onclick: () => void refresh(true) }, 'Refresh');
-  const screen = h('section', { class: 'screen' }, h('div', { class: 'title-row' }, h('h1', null, 'Library'), refreshBtn), status, shelf, body);
+  const searchBtn = h('button', { class: 'small', 'aria-label': 'Search', onclick: () => app.go('#/search') }, '🔍 Search');
+  const today = h('div');
+  const screen = h('section', { class: 'screen' }, h('div', { class: 'title-row' }, h('h1', null, 'Library'), h('div', { class: 'buttons' }, searchBtn, refreshBtn)), status, today, shelf, body);
+  const examEditing = new Set<string>();
+  const dueCounts = new Map<string, { n: number; entry?: IndexedItem }>();
+  let dueKey = '';
+
+  // Flashcards due per course (box 1–2), worked out in the background from chapter text.
+  const countDue = async (names: string[]) => {
+    const key = names.join('|') + JSON.stringify(app.state.cards).length;
+    if (key === dueKey) return;
+    dueKey = key;
+    for (const name of names) {
+      let n = 0;
+      let best: { n: number; entry?: IndexedItem } = { n: 0 };
+      for (const entry of app.library.items.filter((x) => x.item.collection === name && x.item.mode === 'teach')) {
+        const due = cardsDue(await itemCards(app, entry), app.state.cards).length;
+        n += due;
+        if (due > best.n) best = { n: due, entry };
+      }
+      dueCounts.set(name, { n, entry: best.entry });
+    }
+    renderToday();
+  };
+
+  const renderToday = () => {
+    const courses = app.library.collections
+      .map((name) => {
+        const date = app.state.examDate(name);
+        const plan = date ? coursePlan(app.library.items.filter((x) => x.item.collection === name), app.state.playback, date) : null;
+        return plan ? { name, plan } : null;
+      })
+      .filter((x) => x !== null)
+      .sort((a, b) => a.plan.daysLeft - b.plan.daysLeft);
+    void countDue(courses.map((c) => c.name));
+    fill(
+      today,
+      courses.length > 0 && [
+        h('h2', null, 'Today'),
+        ...courses.map(({ name, plan }) => {
+          const segs = quizSegments(app.library.items.filter((x) => x.item.collection === name));
+          const due = dueCounts.get(name);
+          return h(
+            'div',
+            { class: 'today' },
+            h('div', { class: 'name' }, `${name} · ${examLabel(plan.daysLeft)}`),
+            plan.today.length
+              ? h(
+                  'div',
+                  { class: 'list' },
+                  plan.today.map((x) => h('button', { class: 'row link', onclick: () => void app.player.open(x).then(() => app.go('#/player')) }, h('span', { class: 'grow' }, `▶ ${x.item.title}`))),
+                  plan.remaining.length > plan.today.length && h('p', { class: 'muted small' }, `${plan.remaining.length - plan.today.length} more before the exam.`),
+                )
+              : h('p', { class: 'muted small' }, 'Everything listened to. Review with Quiz me and flashcards.'),
+            h(
+              'div',
+              { class: 'buttons' },
+              segs.length > 0 && h('button', { class: 'small', onclick: () => void app.player.startQuiz(shuffle(segs)).then(() => app.go('#/player')) }, `🎧 Quiz me (${segs.length})`),
+              due && due.n > 0 && due.entry && h('button', { class: 'small', onclick: () => app.go(`#/cards/${encodeURIComponent(due.entry!.path)}`) }, `🃏 ${due.n} flashcard${due.n === 1 ? '' : 's'} due`),
+            ),
+          );
+        }),
+      ],
+    );
+  };
+
+  const examControl = (name: string) => {
+    const date = app.state.examDate(name);
+    if (examEditing.has(name)) {
+      const input = h('input', { type: 'date', value: date ?? '', 'aria-label': `${name} exam date` }) as HTMLInputElement;
+      const done = async (value: string) => {
+        examEditing.delete(name);
+        await app.state.setExam(name, value);
+        void app.state.sync().catch(() => {});
+      };
+      return h(
+        'span',
+        { class: 'inline-action' },
+        input,
+        h('button', { class: 'small primary', onclick: () => void done(input.value) }, 'Save'),
+        date && h('button', { class: 'small', onclick: () => void done('') }, 'Remove'),
+        h('button', { class: 'small', onclick: () => (examEditing.delete(name), render()) }, 'Cancel'),
+      );
+    }
+    return h('button', { class: 'small', onclick: () => (examEditing.add(name), render()) }, date ? '📅 Exam date' : '📅 Set exam date');
+  };
 
   const render = () => {
+    renderToday();
     const items = app.library.items;
     const resume = continueListening(items, app.state.playback);
     fill(
@@ -65,6 +153,14 @@ export function libraryScreen(app: App): HTMLElement {
               segs.length > 0 && h('button', { class: 'small', onclick: () => void app.player.startQuiz(shuffle(segs)).then(() => app.go('#/player')) }, `🎧 Quiz me (${segs.length})`),
               withAudio > 1 && h('button', { class: 'small', onclick: () => app.go(`#/review/${encodeURIComponent(name)}`) }, 'Build a review'),
             ),
+            rows.length > 0 &&
+              h(
+                'div',
+                { class: 'buttons collection-tools' },
+                examControl(name),
+                rows.some((x) => x.item.mode === 'teach' && !x.item.review) && glossaryButton(app, name, () => app.library.items.filter((x) => x.item.collection === name)),
+                exportNotesButton(app, name, () => app.library.items.filter((x) => x.item.collection === name)),
+              ),
             rows.length ? h('div', { class: 'list' }, rows.map((x) => itemRow(app, x))) : h('p', { class: 'muted small' }, 'Empty'),
           ];
         }),

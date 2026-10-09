@@ -267,6 +267,19 @@ export class DriveStorage implements Storage {
     return (await this.request(`${API}/files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent(mimeType)}`)).blob();
   }
 
+  /** Drive converts the uploaded markdown into a Google Doc (named without the .md). */
+  async writeAsGoogleDoc(path: string, markdown: string): Promise<{ id: string; url: string }> {
+    const p = normalizePath(path);
+    const parent = await this.mkdir(dirname(p));
+    const meta = { name: basename(p).replace(/\.md$/i, ''), parents: [parent.id], mimeType: 'application/vnd.google-apps.document' };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    form.append('file', new Blob([markdown], { type: 'text/markdown' }));
+    const res = await this.request(`${UPLOAD}/files?uploadType=multipart&fields=${FIELDS}`, { method: 'POST', body: form });
+    const file = (await res.json()) as DriveFile;
+    return { id: file.id, url: `https://docs.google.com/document/d/${file.id}/edit` };
+  }
+
   async changes(token?: string): Promise<{ token: string; changed: ChangedFile[] }> {
     if (!token) {
       const res = await this.request(`${API}/changes/startPageToken`);

@@ -12,6 +12,15 @@ import { coverFor } from './artwork';
 import { silenceMap, skipTarget, SKIP_FROM_SPEED, type Silence } from './skipSilence';
 import type { QuizSegment } from '../study/quiz';
 import { smartRewindSec } from './rewind';
+import { recapPlan, type RecapPlan } from './recap';
+
+/** The result of a spoken answer, shown on the Player screen. */
+export interface AnswerResult {
+  said: string;
+  expected: string;
+  score: 'right' | 'close' | 'missed' | 'error';
+  message?: string;
+}
 
 export const SKIP_SEC = 15;
 const SAVE_EVERY_MS = 10_000;
@@ -27,7 +36,9 @@ export interface PlayerState {
   speed: number;
   error?: string;
   /** Set while in Quiz me mode: which question of how many. */
-  quiz?: { index: number; total: number };
+  quiz?: { index: number; total: number; listening: boolean; result?: AnswerResult; spoken: boolean };
+  /** Offered after 3+ days away from this item. */
+  recap?: RecapPlan;
 }
 
 type Listener = (s: PlayerState) => void;
@@ -61,6 +72,9 @@ export class Player {
     void kvGet<boolean>('player.skipSilence').then((v) => {
       if (v === false) this.skipSilence = false;
     });
+    void kvGet<boolean>('quiz.spoken').then((v) => {
+      if (v === true) this.spokenAnswers = true;
+    });
     this.audio = new Audio();
     this.audio.preload = 'auto';
     this.audio.addEventListener('timeupdate', () => this.onTime());
@@ -90,7 +104,8 @@ export class Player {
       loading: this.loading,
       speed: this.speed,
       error: this.error,
-      quiz: this.quiz ? { index: this.quiz.index, total: this.quiz.segments.length } : undefined,
+      quiz: this.quiz ? { index: this.quiz.index, total: this.quiz.segments.length, listening: this.listening, result: this.answerResult, spoken: this.spokenAnswers } : undefined,
+      recap: this.recap ?? undefined,
     };
   }
 
@@ -100,12 +115,70 @@ export class Player {
   }
 
   /** Quiz me: plays question segments in order; resume positions are left alone meanwhile. */
-  private quiz: { segments: QuizSegment[]; index: number } | null = null;
+  private quiz: { segments: QuizSegment[]; index: number; asked?: number } | null = null;
   private advancing = false;
+
+  /** Say your answer: pause at each answer and listen (off unless turned on; this device only). */
+  spokenAnswers = false;
+  /** Set by the app: listens and scores one answer. */
+  answerHook: ((seg: QuizSegment) => Promise<AnswerResult | null>) | null = null;
+  private listening = false;
+  private answerResult?: AnswerResult;
+
+  setSpokenAnswers(on: boolean): void {
+    this.spokenAnswers = on;
+    void kvSet('quiz.spoken', on);
+    this.emit();
+  }
+
+  private async askForAnswer(seg: QuizSegment): Promise<void> {
+    if (!this.answerHook || !this.quiz) return;
+    const index = this.quiz.index;
+    this.audio.pause();
+    this.listening = true;
+    this.answerResult = undefined;
+    this.emit();
+    try {
+      this.answerResult = (await this.answerHook(seg)) ?? undefined;
+    } catch (err) {
+      this.answerResult = { said: '', expected: '', score: 'error', message: (err as Error).message };
+    } finally {
+      this.listening = false;
+    }
+    // Carry on with the answer, unless the quiz moved on or stopped meanwhile.
+    if (this.quiz && this.quiz.index === index) await this.audio.play().catch(() => {});
+    this.emit();
+  }
+
+  // ---- Recap on return ----
+  private recap: RecapPlan | null = null;
+  private returnTo: { itemId: string; chapter: number; position: number } | null = null;
+
+  /** Plays the offered recap; afterwards (for a recap chapter) returns to where you were. */
+  async playRecap(): Promise<void> {
+    const r = this.recap;
+    if (!r || !this.entry) return;
+    this.recap = null;
+    if (r.kind === 'rewind') {
+      if (this.chapter !== r.chapter) await this.loadChapter(r.chapter, r.start, true);
+      else this.seekTo(r.start);
+      this.play();
+      return;
+    }
+    this.returnTo = { itemId: this.entry.item.id, chapter: this.chapter, position: this.audio.currentTime };
+    await this.loadChapter(r.chapter, 0, true);
+  }
+
+  dismissRecap(): void {
+    this.recap = null;
+    this.emit();
+  }
 
   async startQuiz(segments: QuizSegment[]): Promise<void> {
     if (!segments.length) return;
     this.quiz = { segments, index: 0 };
+    this.answerResult = undefined;
+    this.recap = null;
     await this.playQuizSegment(0);
   }
 
@@ -130,6 +203,8 @@ export class Player {
   private async playQuizSegment(i: number): Promise<void> {
     if (!this.quiz) return;
     this.quiz.index = i;
+    this.quiz.asked = undefined;
+    this.answerResult = undefined;
     const seg = this.quiz.segments[i];
     this.advancing = true;
     try {
@@ -150,7 +225,9 @@ export class Player {
   /** Opens an item at a chapter (default: where you left off) and starts playing. */
   async open(entry: IndexedItem, chapter?: number, position?: number): Promise<void> {
     this.quiz = null;
+    this.returnTo = null;
     const saved = this.state.position(entry.item.id);
+    this.recap = chapter === undefined && position === undefined ? recapPlan(entry, saved) : null;
     const sameItem = this.entry?.item.id === entry.item.id;
     if (this.entry && !sameItem) await this.save(true);
     this.entry = entry;
@@ -221,7 +298,7 @@ export class Player {
 
   /** Saves the position now; `push` also syncs to Drive (errors ignored; it retries later). */
   async save(push: boolean): Promise<void> {
-    if (!this.entry || this.quiz) return;
+    if (!this.entry || this.quiz || this.returnTo) return;
     this.lastSave = Date.now();
     await this.state.savePosition(this.entry.item.id, { chapter: this.chapter, positionSec: this.audio.currentTime || 0, speed: this.speed });
     if (push) {
@@ -279,6 +356,12 @@ export class Player {
   }
 
   private async onEnded(): Promise<void> {
+    const back = this.returnTo;
+    if (back && back.itemId === this.entry?.item.id) {
+      this.returnTo = null;
+      await this.loadChapter(back.chapter, back.position, true);
+      return;
+    }
     if (this.quiz) {
       await this.quizStep(1);
       return;
@@ -324,6 +407,11 @@ export class Player {
   private onTime(): void {
     if (this.quiz && !this.advancing && !this.audio.paused) {
       const seg = this.quiz.segments[this.quiz.index];
+      if (this.spokenAnswers && this.answerHook && seg.answer !== undefined && this.quiz.asked !== this.quiz.index && this.audio.currentTime >= seg.answer - 0.05 && this.audio.currentTime < seg.end) {
+        this.quiz.asked = this.quiz.index;
+        void this.askForAnswer(seg);
+        return;
+      }
       if (this.audio.currentTime >= seg.end) {
         void this.quizStep(1);
         return;

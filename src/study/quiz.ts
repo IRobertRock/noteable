@@ -8,6 +8,10 @@ export interface QuizSegment {
   chapter: number;
   start: number;
   end: number;
+  /** Where the answer starts (newer audio only), for spoken answers. */
+  answer?: number;
+  /** Which review question of the chapter this is (0-based), to find its written answer. */
+  index: number;
 }
 
 export function quizSegments(items: IndexedItem[]): QuizSegment[] {
@@ -15,7 +19,7 @@ export function quizSegments(items: IndexedItem[]): QuizSegment[] {
   for (const entry of items) {
     for (const c of entry.item.chapters) {
       if (c.status !== 'done' || c.excluded || !c.cues) continue;
-      for (const cue of c.cues) out.push({ entry, chapter: c.n, start: cue.start, end: cue.end });
+      c.cues.forEach((cue, index) => out.push({ entry, chapter: c.n, start: cue.start, end: cue.end, index, ...(cue.answer !== undefined ? { answer: cue.answer } : {}) }));
     }
   }
   return out;

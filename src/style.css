@@ -279,3 +279,19 @@ input[type=text] { font: inherit; color: var(--text); background: var(--bg); bor
 .car-play { width: 160px; height: 160px; border-radius: 50%; font-size: 3rem; background: #f2b84b; color: #1a1406; border: 0; }
 .car-next { align-self: center; min-width: 260px; min-height: 80px; font-size: 1.4rem; background: #1c1f26; color: #fff; border: 0; border-radius: 40px; }
 .car-close { position: absolute; top: 16px; right: 16px; width: 56px; height: 56px; border-radius: 50%; background: #1c1f26; color: #fff; border: 0; font-size: 1.3rem; }
+
+/* ---- phase 12: search, today, quiz answers ---- */
+.tabs a { position: relative; }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--accent); color: var(--accent-text, #1a1406); font-size: 0.7rem; line-height: 18px; text-align: center; vertical-align: middle; }
+input[type='search'] { width: 100%; font-size: 1.05rem; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.search-hit .snippet { margin: 6px 0; font-size: 0.92rem; line-height: 1.45; }
+.search-hit mark, .prose mark { background: #f2b84b55; color: inherit; border-radius: 3px; padding: 0 1px; }
+.prose .found { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.today { padding: 12px 14px; margin-bottom: 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.collection-tools { margin: -4px 0 10px; }
+.inline-action { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.inline-action input[type='date'] { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.banner.listening { background: #1f6fb233; }
+.banner.answer-right { background: #217a4b33; }
+.banner.answer-close { background: #b5770d33; }
+.banner.answer-missed { background: #b3362b33; }

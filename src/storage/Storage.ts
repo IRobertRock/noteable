@@ -79,6 +79,8 @@ export interface Storage {
 
   // Phase 11: what changed since `token` (Drive's change feed). Without a token,
   // returns a starting token and no changes.
+  /** Uploads markdown converted to a Google Doc; returns its id and a link to open it. Optional. */
+  writeAsGoogleDoc?(path: string, markdown: string): Promise<{ id: string; url: string }>;
   changes?(token?: string): Promise<{ token: string; changed: ChangedFile[] }>;
 }
 

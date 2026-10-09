@@ -21,6 +21,7 @@ import { readJson } from '../storage/Storage';
 import { formatBytes, formatDuration } from './format';
 import { fill, h } from './h';
 import { bookmarkList } from './player';
+import { exportNotesButton } from './studyActions';
 
 export function itemScreen(app: App, itemPath: string): HTMLElement {
   const screen = h('section', { class: 'screen' }, h('p', { class: 'muted' }, 'Loading…'));
@@ -260,6 +261,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       segs.length > 0 && h('button', { class: 'small', onclick: () => void app.player.startQuiz(shuffle(segs)).then(() => app.go('#/player')) }, `🎧 Quiz me (${segs.length})`),
       item.mode === 'teach' && !segs.length && !item.review && h('span', { class: 'muted small' }, 'Generate again to enable Quiz me for this guide.'),
       item.mode === 'narrate' && !item.review && h('button', { class: 'small', onclick: () => void askClaude(item) }, '🤖 Ask Claude for a study guide'),
+      exportNotesButton(app, item.title, () => [entry!]),
     );
   };
 
