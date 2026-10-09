@@ -19,6 +19,18 @@ export interface PlaybackEntry {
   heard?: Record<string, number>;
 }
 
+/** Flashcard results: Leitner box per card id, synced as State/cards.json (latest wins per card). */
+export interface CardsDoc {
+  version: 1;
+  cards: Record<string, { box: number; updatedAt: string }>;
+}
+
+export function mergeCards(a: CardsDoc, b: CardsDoc): CardsDoc {
+  const cards = { ...a.cards };
+  for (const [id, c] of Object.entries(b.cards ?? {})) if (!cards[id] || c.updatedAt > cards[id].updatedAt) cards[id] = c;
+  return { version: 1, cards };
+}
+
 /** Items lined up to play after the current one (item ids), synced as State/upnext.json. */
 export interface UpNextDoc {
   version: 1;
@@ -37,6 +49,9 @@ export interface Bookmark {
   chapter: number;
   positionSec: number;
   note: string;
+  /** Highlights are text picked in the reading view (positionSec is 0). */
+  kind?: 'bookmark' | 'highlight';
+  text?: string;
   createdAt: string;
   updatedAt: string;
   deleted?: boolean;
@@ -99,6 +114,7 @@ interface Synced<T> {
   merge: (a: T, b: T) => T;
 }
 
+const CARDS: Synced<CardsDoc> = { path: 'State/cards.json', key: 'state.cards', empty: { version: 1, cards: {} }, merge: mergeCards };
 const UPNEXT: Synced<UpNextDoc> = { path: 'State/upnext.json', key: 'state.upnext', empty: { version: 1, items: [], updatedAt: '' }, merge: mergeUpNext };
 const PLAYBACK: Synced<PlaybackDoc> = { path: 'State/playback.json', key: 'state.playback', empty: { version: 1, items: {} }, merge: mergePlayback };
 const BOOKMARKS: Synced<BookmarkDoc> = { path: 'State/bookmarks.json', key: 'state.bookmarks', empty: { version: 1, bookmarks: [] }, merge: mergeBookmarks };
@@ -116,6 +132,7 @@ export class StateStore {
   playback: PlaybackDoc = PLAYBACK.empty;
   bookmarks: BookmarkDoc = BOOKMARKS.empty;
   upNext: UpNextDoc = UPNEXT.empty;
+  cards: CardsDoc = CARDS.empty;
   private readonly listeners = new Set<Listener>();
   private syncing: Promise<void> | null = null;
 
@@ -130,6 +147,7 @@ export class StateStore {
     this.playback = (await this.kv.get<PlaybackDoc>(PLAYBACK.key)) ?? PLAYBACK.empty;
     this.bookmarks = (await this.kv.get<BookmarkDoc>(BOOKMARKS.key)) ?? BOOKMARKS.empty;
     this.upNext = (await this.kv.get<UpNextDoc>(UPNEXT.key)) ?? UPNEXT.empty;
+    this.cards = (await this.kv.get<CardsDoc>(CARDS.key)) ?? CARDS.empty;
     this.emit();
   }
 
@@ -157,6 +175,19 @@ export class StateStore {
     this.playback = { version: 1, items: { ...this.playback.items, [itemId]: entry } };
     await this.kv.set(PLAYBACK.key, this.playback);
     this.emit();
+  }
+
+  async setCardBox(id: string, box: number): Promise<void> {
+    this.cards = { version: 1, cards: { ...this.cards.cards, [id]: { box, updatedAt: this.now().toISOString() } } };
+    await this.kv.set(CARDS.key, this.cards);
+    this.emit();
+  }
+
+  async addHighlight(itemId: string, chapter: number, text: string, note = ''): Promise<Bookmark> {
+    const at = this.now().toISOString();
+    const b: Bookmark = { id: crypto.randomUUID(), itemId, chapter, positionSec: 0, note, kind: 'highlight', text: text.slice(0, 1000), createdAt: at, updatedAt: at };
+    await this.putBookmark(b);
+    return b;
   }
 
   /** Replaces the Up next list (item ids, in play order). */
@@ -207,6 +238,7 @@ export class StateStore {
         this.playback = await this.syncDoc(PLAYBACK, this.playback);
         this.bookmarks = await this.syncDoc(BOOKMARKS, this.bookmarks);
         this.upNext = await this.syncDoc(UPNEXT, this.upNext);
+        this.cards = await this.syncDoc(CARDS, this.cards);
         this.emit();
       } finally {
         this.syncing = null;

@@ -199,3 +199,21 @@ describe('mid-chapter checkpoints', () => {
     expect(engine.calls()).toBe(41);
   });
 });
+
+describe('Quiz me cues', () => {
+  it('records one segment per review question, from the question to the end of its answer', async () => {
+    const drive = new FakeDrive();
+    const { storage } = makeStorage(drive);
+    await storage.write('Inbox/g.md', '---\ntitle: G\nmode: teach\n---\n## Review questions\n**Q:** One?\n\n**A:** Yes.\n\n**Q:** Two?\n\n**A:** No.\n\nThat is all.\n');
+    const { itemPath } = await importMarkdown(storage, 'Inbox/g.md');
+    await generateItem(itemPath, 'af_bella', deps(storage, fakeEngine()));
+    const [ch] = (await readJson<Item>(storage, `${itemPath}/item.json`)).chapters;
+    expect(ch.cues).toHaveLength(2);
+    const [a, b] = ch.cues!;
+    // Each segment holds question (1 s) + 5 s pause + answer (1 s) + a paragraph gap.
+    expect(a.end - a.start).toBeGreaterThan(7);
+    expect(a.end - a.start).toBeLessThan(8);
+    expect(b.start).toBeGreaterThanOrEqual(a.end - 0.2);
+    expect(b.end).toBeLessThan(ch.durationSec!);
+  });
+});

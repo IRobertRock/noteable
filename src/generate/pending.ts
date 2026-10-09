@@ -8,6 +8,7 @@ export interface PendingAudio {
   n: number;
   blob: Blob;
   durationSec: number;
+  cues?: { start: number; end: number }[];
 }
 
 export interface PendingStore {

@@ -34,3 +34,19 @@ describe('reading view for study guides', () => {
     expect(el.querySelector('.answer')).toBeNull();
   });
 });
+
+describe('highlights in the reading view', async () => {
+  const { markText } = await import('../src/ui/reader');
+  it('marks text inside a paragraph, even across bold', () => {
+    const el = document.createElement('div');
+    el.innerHTML = '<p>Every choice has a <strong>hidden</strong> price, even free ones.</p>';
+    expect(markText(el, 'a hidden price')).toBe(true);
+    expect(el.querySelector('mark')?.textContent).toBe('a hidden price');
+    expect(el.textContent).toBe('Every choice has a hidden price, even free ones.');
+  });
+  it('does nothing when the text is not there', () => {
+    const el = document.createElement('div');
+    el.innerHTML = '<p>Something else.</p>';
+    expect(markText(el, 'missing words')).toBe(false);
+  });
+});

@@ -8,6 +8,8 @@ import { chapterProgress } from '../library/continue';
 import { describeWorker, isOnline, readWorkerStatus, type WorkerStatus } from '../queue/workerStatus';
 import { readSettings } from '../settings';
 import { logLine } from '../log';
+import { quizSegments, shuffle } from '../study/quiz';
+import { studyGuidePrompt } from '../study/claudePrompt';
 import type { Entry } from '../storage/Storage';
 import { detail as jobDetail } from './queue';
 import type { IndexedItem } from '../library/libraryIndex';
@@ -88,6 +90,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       item.zotero && h('p', { class: 'muted small' }, `From Zotero: ${[item.zotero.authors, item.zotero.year, item.zotero.publication].filter(Boolean).join(' · ')}`),
       message && h('p', { class: 'error', role: 'alert' }, message),
       guide &&
+        !item.review &&
         !mine?.running &&
         !desktopJob &&
         h(
@@ -152,6 +155,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
           h('button', { onclick: () => app.go(readHash(itemPath)) }, 'Read'),
         ),
       done > 0 && !playingThis && upNextButtons(item.id),
+      done > 0 && studyButtons(item),
       done > 0 &&
         h(
           'div',
@@ -179,8 +183,12 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
                 ),
         ),
 
-      done === 0 || showGenerate || mine || !ready ? generateSection(item, mine, done) : h('button', { class: 'link-button small', onclick: () => ((showGenerate = true), render()) }, 'Regenerate…'),
-      !mine?.running && h('button', { class: done === 0 ? undefined : 'link-button small', onclick: () => app.go(editHash(itemPath)) }, done === 0 ? '✎ Check / edit the text' : 'Edit text…'),
+      item.review
+        ? h('p', { class: 'muted small' }, 'A course review: it plays chapters from other items, so it has nothing to generate or edit.')
+        : done === 0 || showGenerate || mine || !ready
+          ? generateSection(item, mine, done)
+          : h('button', { class: 'link-button small', onclick: () => ((showGenerate = true), render()) }, 'Regenerate…'),
+      !mine?.running && !item.review && h('button', { class: done === 0 ? undefined : 'link-button small', onclick: () => app.go(editHash(itemPath)) }, done === 0 ? '✎ Check / edit the text' : 'Edit text…'),
 
       h('h2', null, 'Chapters'),
       h(
@@ -229,6 +237,62 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
         ? h('button', { class: 'small', onclick: async () => (await app.state.setUpNext(app.state.upNext.items.filter((x) => x !== id)), sync()) }, '✓ In Up next · Remove')
         : h('button', { class: 'small', onclick: async () => (await app.state.setUpNext([...app.state.upNext.items, id]), sync()) }, '＋ Add to Up next'),
     );
+  };
+
+  const studyButtons = (item: Item) => {
+    const segs = quizSegments([entry!]);
+    return h(
+      'div',
+      { class: 'buttons' },
+      item.mode === 'teach' && h('button', { class: 'small', onclick: () => app.go(`#/cards/${encodeURIComponent(itemPath)}`) }, '🃏 Flashcards'),
+      segs.length > 0 && h('button', { class: 'small', onclick: () => void app.player.startQuiz(shuffle(segs)).then(() => app.go('#/player')) }, `🎧 Quiz me (${segs.length})`),
+      item.mode === 'teach' && !segs.length && !item.review && h('span', { class: 'muted small' }, 'Generate again to enable Quiz me for this guide.'),
+      item.mode === 'narrate' && !item.review && h('button', { class: 'small', onclick: () => void askClaude(item) }, '🤖 Ask Claude for a study guide'),
+    );
+  };
+
+  const askClaude = async (item: Item) => {
+    const texts: { title: string; markdown: string }[] = [];
+    for (const c of item.chapters.filter((x) => !x.excluded)) texts.push({ title: c.title, markdown: await app.downloads.text(entry!, c.n).catch(() => '') });
+    const prompt = studyGuidePrompt(itemPath, item, texts);
+    const box = h('textarea', { rows: 10, readonly: true, 'aria-label': 'Prompt for Claude' }) as HTMLTextAreaElement;
+    box.value = prompt;
+    const status = h('p', { class: 'muted small' }, 'Paste this into a chat with Claude (with Google Drive connected). When Claude has saved guide.md, open this item again and choose "Use the study guide".');
+    const close = () => panel.remove();
+    const panel = h(
+      'div',
+      { class: 'import-overlay', role: 'dialog' },
+      h(
+        'div',
+        { class: 'import-card' },
+        h('h2', null, 'Ask Claude for a study guide'),
+        box,
+        status,
+        h(
+          'div',
+          { class: 'buttons' },
+          h(
+            'button',
+            {
+              class: 'primary',
+              onclick: async () => {
+                try {
+                  await navigator.clipboard.writeText(prompt);
+                  status.textContent = 'Copied. Paste it into Claude.';
+                } catch {
+                  box.select();
+                  status.textContent = 'Select all and copy (your browser blocked automatic copying).';
+                }
+              },
+            },
+            'Copy prompt',
+          ),
+          h('button', { onclick: close }, 'Close'),
+        ),
+      ),
+    );
+    document.body.append(panel);
+    app.onLeave(close);
   };
 
   const deleteItem = async () => {

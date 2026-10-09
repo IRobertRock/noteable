@@ -10,6 +10,7 @@ import { clampSpeed, type StateStore } from '../sync/state';
 import { kvGet, kvSet } from '../db';
 import { coverFor } from './artwork';
 import { silenceMap, skipTarget, SKIP_FROM_SPEED, type Silence } from './skipSilence';
+import type { QuizSegment } from '../study/quiz';
 
 export const SKIP_SEC = 15;
 const SAVE_EVERY_MS = 10_000;
@@ -26,6 +27,8 @@ export interface PlayerState {
   loading: boolean;
   speed: number;
   error?: string;
+  /** Set while in Quiz me mode: which question of how many. */
+  quiz?: { index: number; total: number };
 }
 
 type Listener = (s: PlayerState) => void;
@@ -88,6 +91,7 @@ export class Player {
       loading: this.loading,
       speed: this.speed,
       error: this.error,
+      quiz: this.quiz ? { index: this.quiz.index, total: this.quiz.segments.length } : undefined,
     };
   }
 
@@ -96,8 +100,57 @@ export class Player {
     return () => this.listeners.delete(fn);
   }
 
+  /** Quiz me: plays question segments in order; resume positions are left alone meanwhile. */
+  private quiz: { segments: QuizSegment[]; index: number } | null = null;
+  private advancing = false;
+
+  async startQuiz(segments: QuizSegment[]): Promise<void> {
+    if (!segments.length) return;
+    this.quiz = { segments, index: 0 };
+    await this.playQuizSegment(0);
+  }
+
+  stopQuiz(): void {
+    if (!this.quiz) return;
+    this.quiz = null;
+    this.audio.pause();
+    this.emit();
+  }
+
+  async quizStep(delta: number): Promise<void> {
+    if (!this.quiz) return;
+    const next = this.quiz.index + delta;
+    if (next < 0) return this.seekTo(this.quiz.segments[0].start);
+    if (next >= this.quiz.segments.length) {
+      this.stopQuiz();
+      return;
+    }
+    await this.playQuizSegment(next);
+  }
+
+  private async playQuizSegment(i: number): Promise<void> {
+    if (!this.quiz) return;
+    this.quiz.index = i;
+    const seg = this.quiz.segments[i];
+    this.advancing = true;
+    try {
+      if (this.entry?.item.id === seg.entry.item.id && this.chapter === seg.chapter && this.url) {
+        this.seekTo(seg.start);
+        await this.audio.play();
+      } else {
+        this.entry = seg.entry;
+        await this.loadChapter(seg.chapter, seg.start, true);
+      }
+    } finally {
+      this.advancing = false;
+    }
+    this.setMetadata();
+    this.emit();
+  }
+
   /** Opens an item at a chapter (default: where you left off) and starts playing. */
   async open(entry: IndexedItem, chapter?: number, position?: number): Promise<void> {
+    this.quiz = null;
     const saved = this.state.position(entry.item.id);
     const sameItem = this.entry?.item.id === entry.item.id;
     if (this.entry && !sameItem) await this.save(true);
@@ -168,7 +221,7 @@ export class Player {
 
   /** Saves the position now; `push` also syncs to Drive (errors ignored; it retries later). */
   async save(push: boolean): Promise<void> {
-    if (!this.entry) return;
+    if (!this.entry || this.quiz) return;
     this.lastSave = Date.now();
     await this.state.savePosition(this.entry.item.id, { chapter: this.chapter, positionSec: this.audio.currentTime || 0, speed: this.speed });
     if (push) {
@@ -226,6 +279,10 @@ export class Player {
   }
 
   private async onEnded(): Promise<void> {
+    if (this.quiz) {
+      await this.quizStep(1);
+      return;
+    }
     if (this.nextPlayable() !== null) {
       await this.loadChapter(this.nextPlayable()!, 0, true);
       return;
@@ -265,6 +322,13 @@ export class Player {
   }
 
   private onTime(): void {
+    if (this.quiz && !this.advancing && !this.audio.paused) {
+      const seg = this.quiz.segments[this.quiz.index];
+      if (this.audio.currentTime >= seg.end) {
+        void this.quizStep(1);
+        return;
+      }
+    }
     if (this.skipSilence && this.silences && this.speed >= SKIP_FROM_SPEED && !this.audio.paused) {
       const to = skipTarget(this.silences.list, this.audio.currentTime);
       if (to !== null) this.audio.currentTime = to;
@@ -314,8 +378,8 @@ export class Player {
     set('pause', () => this.pause());
     set('seekbackward', (d) => this.skip(-(d.seekOffset ?? SKIP_SEC)));
     set('seekforward', (d) => this.skip(d.seekOffset ?? SKIP_SEC));
-    set('previoustrack', () => void this.previousChapter());
-    set('nexttrack', () => void this.nextChapter());
+    set('previoustrack', () => void (this.quiz ? this.quizStep(-1) : this.previousChapter()));
+    set('nexttrack', () => void (this.quiz ? this.quizStep(1) : this.nextChapter()));
     set('seekto', (d) => d.seekTime !== undefined && this.seekTo(d.seekTime));
     set('stop', () => this.pause());
   }
@@ -325,7 +389,7 @@ export class Player {
     const ch = this.chapterInfo();
     // Short titles read better on lock screens and car displays.
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: ch ? `Ch ${ch.n} · ${ch.title}` : this.entry.item.title,
+      title: this.quiz ? `Quiz ${this.quiz.index + 1}/${this.quiz.segments.length} · ${this.entry.item.title}` : ch ? `Ch ${ch.n} · ${ch.title}` : this.entry.item.title,
       artist: this.entry.item.title,
       album: this.entry.item.collection,
       artwork: [{ src: coverFor(this.entry.item.collection, this.artwork), sizes: '512x512', type: 'image/png' }],

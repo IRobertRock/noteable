@@ -15,6 +15,10 @@ export interface Chapter {
   status: ChapterStatus;
   /** Left out of audio and reading (set in the preview). */
   excluded?: boolean;
+  /** Review-question segments in this chapter's audio (question start → end of answer), for Quiz me. */
+  cues?: { start: number; end: number }[];
+  /** For review items: the item folder this chapter's text and audio live in. */
+  src?: string;
 }
 
 export interface Item {
@@ -33,6 +37,8 @@ export interface Item {
   ocr?: boolean;
   /** Where it came from in Zotero (for the item page). */
   zotero?: { key: string; authors: string; year?: string; publication?: string };
+  /** A course review: its chapters point at other items' text and audio. */
+  review?: boolean;
   /** The guide.md version this item last used or dismissed. */
   guide?: { modifiedTime: string; dismissed?: boolean };
   createdAt: string;

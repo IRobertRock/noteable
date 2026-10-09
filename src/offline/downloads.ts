@@ -6,6 +6,7 @@ import { idbDelete, idbGet, idbPut } from '../db';
 import type { IndexedItem } from '../library/libraryIndex';
 import type { Item } from '../model/item';
 import { readText, type Storage } from '../storage/Storage';
+import { chapterDir } from '../study/review';
 
 const CACHE = 'noteable-audio-v1';
 const DOWNLOADS_KEY = 'downloads';
@@ -96,9 +97,9 @@ export class Downloads {
     this.emit();
     try {
       for (const [i, c] of chapters.entries()) {
-        const blob = await this.storage.read(`${path}/${c.audioFile}`);
+        const blob = await this.storage.read(`${chapterDir(path, c)}/${c.audioFile}`);
         await this.cache.put(audioKey(item.id, c.n), blob);
-        await this.texts.put(textKey(item.id, c.n), await readText(this.storage, `${path}/${c.textFile}`));
+        await this.texts.put(textKey(item.id, c.n), await readText(this.storage, `${chapterDir(path, c)}/${c.textFile}`));
         bytes += blob.size;
         this.active.set(item.id, (i + 1) / chapters.length);
         this.emit();
@@ -128,7 +129,7 @@ export class Downloads {
     if (cached) return cached;
     const c = item.chapters.find((x) => x.n === n);
     if (!c?.audioFile) throw new Error(`Chapter ${n} has no audio yet.`);
-    const blob = await this.storage.read(`${path}/${c.audioFile}`);
+    const blob = await this.storage.read(`${chapterDir(path, c)}/${c.audioFile}`);
     return blob.type ? blob : new Blob([blob], { type: 'audio/mpeg' });
   }
 
@@ -138,7 +139,7 @@ export class Downloads {
     if (cached !== undefined) return cached;
     const c = item.chapters.find((x) => x.n === n);
     if (!c) throw new Error(`No chapter ${n}`);
-    return readText(this.storage, `${path}/${c.textFile}`);
+    return readText(this.storage, `${chapterDir(path, c)}/${c.textFile}`);
   }
 
   private emit(): void {

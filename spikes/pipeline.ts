@@ -185,5 +185,21 @@ document.getElementById('run')!.addEventListener('click', async () => {
   player2.pause();
   log(`  ${JSON.stringify(p8)}`);
 
-  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks, sleep, p8 };
+  // ---- Phase 9: Quiz me plays the review question segment and stops at its end ----
+  const { quizSegments } = await import('../src/study/quiz');
+  const p9: Record<string, unknown> = {};
+  const segsA = quizSegments([index.byPath(itemPath)!]);
+  p9.segments = segsA.map((x) => [x.start, x.end]);
+  if (segsA.length) {
+    await player2.startQuiz(segsA);
+    await wait(1200);
+    p9.inQuiz = player2.snapshot.quiz;
+    p9.playingInside = !player2.audio.paused && player2.audio.currentTime >= segsA[0].start && player2.audio.currentTime < segsA[0].end;
+    player2.seekTo(segsA[0].end - 0.3);
+    await wait(1500);
+    p9.endedAfterLastSegment = player2.snapshot.quiz === undefined && player2.audio.paused;
+  }
+  log(`  ${JSON.stringify(p9)}`);
+
+  (window as unknown as { pipelineResult: unknown }).pipelineResult = { status: item.status, rtf: result.realTimeFactor, summary, checks, sleep, p8, p9 };
 });

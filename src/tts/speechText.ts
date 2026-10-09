@@ -3,7 +3,9 @@
 import { marked, type Token, type Tokens } from 'marked';
 import { textToGroups } from './chunk';
 
-export type SpeechStep = { say: string } | { pause: number };
+/** `mark` flags where a block starts ('q' = review question, 'a' = its answer), for Quiz me cue times. */
+export type SpeechMark = 'q' | 'a' | 'block';
+export type SpeechStep = { say: string; mark?: SpeechMark } | { pause: number };
 
 /** Silence after a heading, between paragraphs, and between groups inside a paragraph. */
 export const GAP = { heading: 0.7, paragraph: 0.45, group: 0.12, chapterStart: 0.6 } as const;
@@ -16,7 +18,7 @@ const PAUSE_MARKER = /\[pause\s+(\d+(?:\.\d+)?)\s*s(?:ec(?:onds?)?)?\]/gi;
 const ANSWER = '';
 
 /** Internal: where a pause came from decides which one wins when several meet. */
-type Step = { say: string } | { pause: number; from: 'gap' | 'marker' | 'answer' };
+type Step = { say: string; mark?: SpeechMark } | { pause: number; from: 'gap' | 'marker' | 'answer' };
 
 export function speechPlan(markdown: string): SpeechStep[] {
   const steps: Step[] = [{ pause: GAP.chapterStart, from: 'gap' }];
@@ -27,6 +29,7 @@ export function speechPlan(markdown: string): SpeechStep[] {
     }
     // Inline [pause Ns] markers and **A:** labels inside a paragraph split it.
     const pieces = block.text.split(PAUSE_MARKER);
+    let first = true;
     pieces.forEach((piece, i) => {
       if (i % 2 === 1) {
         steps.push({ pause: Math.min(60, Number(piece)), from: 'marker' });
@@ -36,7 +39,9 @@ export function speechPlan(markdown: string): SpeechStep[] {
         if (k > 0) steps.push({ pause: ANSWER_PAUSE, from: 'answer' });
         const groups = textToGroups(k > 0 ? `Answer. ${part.trim()}` : part);
         groups.forEach((g, j) => {
-          steps.push({ say: g });
+          const mark: SpeechMark | undefined = j === 0 && k > 0 ? 'a' : first ? (g.startsWith('Question.') ? 'q' : 'block') : undefined;
+          first = false;
+          steps.push(mark ? { say: g, mark } : { say: g });
           if (j < groups.length - 1) steps.push({ pause: GAP.group, from: 'gap' });
         });
       });
@@ -159,7 +164,7 @@ function mergePauses(steps: Step[]): SpeechStep[] {
     if ('pause' in s) run.push(s);
     else {
       flush();
-      out.push({ say: s.say });
+      out.push(s.mark ? { say: s.say, mark: s.mark } : { say: s.say });
     }
   }
   flush();

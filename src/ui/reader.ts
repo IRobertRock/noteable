@@ -27,13 +27,24 @@ export function readerScreen(app: App, path: string): HTMLElement {
       .bookmarksFor(item.id)
       .filter((b) => b.chapter === n)
       .map((b) =>
-        h(
-          'button',
-          { class: 'margin-note', onclick: (e: Event) => (e.stopPropagation(), void app.player.open(entry, b.chapter, b.positionSec)) },
-          `🔖 ${formatDuration(b.positionSec)}${b.note ? ` — ${b.note}` : ''}`,
-        ),
+        b.kind === 'highlight'
+          ? h(
+              'button',
+              { class: 'margin-note highlight-note', onclick: (e: Event) => e.stopPropagation() },
+              `✎ ${b.note || `“${(b.text ?? '').slice(0, 60)}${(b.text ?? '').length > 60 ? '…' : ''}”`}`,
+            )
+          : h(
+              'button',
+              { class: 'margin-note', onclick: (e: Event) => (e.stopPropagation(), void app.player.open(entry, b.chapter, b.positionSec)) },
+              `🔖 ${formatDuration(b.positionSec)}${b.note ? ` — ${b.note}` : ''}`,
+            ),
       );
 
+  const showHighlights = (n: number, body: HTMLElement) => {
+    for (const b of app.state.bookmarksFor(item.id)) if (b.kind === 'highlight' && b.chapter === n && b.text) markText(body, b.text);
+  };
+
+  const highlightButton = h('button', { class: 'primary highlight-button', hidden: true }, '✎ Highlight') as HTMLButtonElement;
   (async () => {
     const parts: HTMLElement[] = [h('p', { class: 'muted small' }, h('a', { href: itemHash(path) }, `${item.collection} › ${item.title}`)), h('h1', null, item.title)];
     for (const c of item.chapters.filter((x) => !x.excluded)) {
@@ -57,14 +68,78 @@ export function readerScreen(app: App, path: string): HTMLElement {
         section.classList.add('no-audio');
       }
       sections.set(c.n, section);
+      showHighlights(c.n, body);
       parts.push(section);
     }
-    fill(screen, ...parts);
+    fill(screen, ...parts, highlightButton);
     markCurrent();
   })();
 
+  // Highlights: select text in a chapter, then tap ✎ Highlight.
+  const selected = () => {
+    const sel = document.getSelection();
+    const text = sel?.toString().replace(/\s+/g, ' ').trim() ?? '';
+    const node = sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+    const section = node?.closest<HTMLElement>('section.chapter');
+    return text.length >= 3 && section && screen.contains(section) ? { text, chapter: Number(section.dataset.chapter), section } : null;
+  };
+  const onSelection = () => {
+    highlightButton.hidden = !selected();
+  };
+  document.addEventListener('selectionchange', onSelection);
+  app.onLeave(() => document.removeEventListener('selectionchange', onSelection));
+  highlightButton.addEventListener('pointerdown', (e) => e.preventDefault()); // keep the selection
+  highlightButton.addEventListener('click', async () => {
+    const s = selected();
+    if (!s) return;
+    const note = prompt('Add a note to this highlight (optional):') ?? '';
+    await app.state.addHighlight(item.id, s.chapter, s.text, note.trim());
+    markText(s.section.querySelector('.prose')!, s.text);
+    s.section.querySelector('aside.margin')?.replaceChildren(...bookmarksFor(s.chapter));
+    document.getSelection()?.removeAllRanges();
+    highlightButton.hidden = true;
+    void app.state.sync().catch(() => {});
+  });
+
   app.onLeave(app.player.onChange(markCurrent));
   return screen;
+}
+
+/** Wraps the first occurrence of `text` (within one paragraph) in <mark>. */
+export function markText(root: HTMLElement, text: string): boolean {
+  const target = text.replace(/\s+/g, ' ').trim();
+  for (const block of Array.from(root.querySelectorAll('p, li, blockquote, td, h2, h3'))) {
+    const flat = (block.textContent ?? '').replace(/\s+/g, ' ');
+    const at = flat.indexOf(target);
+    if (at < 0) continue;
+    // Walk text nodes to find the start and end positions.
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let pos = 0;
+    let start: { node: Text; offset: number } | null = null;
+    let end: { node: Text; offset: number } | null = null;
+    for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+      const len = (n.textContent ?? '').replace(/\s+/g, ' ').length;
+      if (!start && at < pos + len) start = { node: n, offset: at - pos };
+      if (start && at + target.length <= pos + len) {
+        end = { node: n, offset: at + target.length - pos };
+        break;
+      }
+      pos += len;
+    }
+    if (!start || !end) return false;
+    try {
+      const range = document.createRange();
+      range.setStart(start.node, Math.min(start.offset, start.node.length));
+      range.setEnd(end.node, Math.min(end.offset, end.node.length));
+      const mark = document.createElement('mark');
+      mark.append(range.extractContents());
+      range.insertNode(mark);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 /**

@@ -119,7 +119,10 @@ describe('teach-mode answer pauses', () => {
 
   it('handles Q and A in the same paragraph', () => {
     const plan = speechPlan('**Q:** Up or down? **A:** Up.');
-    expect(plan.filter((s) => 'say' in s)).toEqual([{ say: 'Question. Up or down?' }, { say: 'Answer. Up.' }]);
+    expect(plan.filter((s) => 'say' in s)).toEqual([
+      { say: 'Question. Up or down?', mark: 'q' },
+      { say: 'Answer. Up.', mark: 'a' },
+    ]);
     expect(plan[plan.findIndex((s) => 'say' in s && s.say.startsWith('Answer')) - 1]).toEqual({ pause: 5 });
   });
 

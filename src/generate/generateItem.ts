@@ -123,6 +123,8 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
       progress.chapterFraction = said / total;
       const writer = await deps.createWriter(resume && { blob: resume.blob, samples: resume.samples });
       let sinceCheckpoint = 0;
+      // Quiz me cues: only reliable when the whole chapter is generated in one go.
+      const cues = resume ? null : new CueRecorder();
       for (let i = resume?.step ?? 0; i < plan.length; i++) {
         const step = plan[i];
         checkAbort(deps.signal);
@@ -130,6 +132,7 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
           writer.silence(step.pause);
           continue;
         }
+        if (step.mark) cues?.mark(step.mark, writer.durationSec);
         const t0 = now();
         const pcm = await engine.generate(step.say, voice);
         genMs += now() - t0;
@@ -146,7 +149,9 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
           await checkpoints.put({ itemPath, n: ch.n, voice, textHash, step: i + 1, said, ...writer.checkpoint() });
         }
       }
-      await pending.put({ itemPath, n: ch.n, blob: writer.finish(), durationSec: writer.durationSec });
+      const durationSec = writer.durationSec;
+      const chapterCues = cues?.finish(durationSec);
+      await pending.put({ itemPath, n: ch.n, blob: writer.finish(), durationSec, ...(chapterCues?.length ? { cues: chapterCues } : {}) });
       await checkpoints?.delete(itemPath, ch.n);
       progress.chaptersDone++;
       await flush();
@@ -182,7 +187,11 @@ async function uploadPending(itemPath: string, item: Item, storage: Storage, pen
     const audioFile = chapterFile('audio', p.n);
     await storage.write(`${itemPath}/${audioFile}`, p.blob, 'audio/mpeg');
     const ch = chapters.find((c) => c.n === p.n);
-    if (ch) Object.assign(ch, { status: 'done', audioFile, durationSec: round(p.durationSec) });
+    if (ch) {
+      Object.assign(ch, { status: 'done', audioFile, durationSec: round(p.durationSec) });
+      if (p.cues) ch.cues = p.cues;
+      else delete ch.cues;
+    }
   }
   const next: Item = { ...item, chapters, updatedAt: new Date().toISOString() };
   next.status = isComplete(next) ? 'ready' : 'generating';
@@ -190,6 +199,29 @@ async function uploadPending(itemPath: string, item: Item, storage: Storage, pen
   // Only forget the local copies once item.json records them as done.
   for (const p of waiting) await pending.delete(itemPath, p.n);
   return next;
+}
+
+/** Turns block marks into Quiz me segments: from a question to the end of its answer. */
+export class CueRecorder {
+  private readonly out: { start: number; end: number }[] = [];
+  private open: { start: number; answered: boolean } | null = null;
+
+  mark(kind: 'q' | 'a' | 'block', at: number): void {
+    if (kind === 'a') {
+      if (this.open) this.open.answered = true;
+      return;
+    }
+    // A new paragraph or question closes an answered question.
+    if (this.open?.answered) this.out.push({ start: round(this.open.start), end: round(at) });
+    if (kind === 'q') this.open = { start: Math.max(0, at - 0.1), answered: false };
+    else if (this.open?.answered) this.open = null;
+  }
+
+  finish(end: number): { start: number; end: number }[] {
+    if (this.open?.answered) this.out.push({ start: round(this.open.start), end: round(end) });
+    this.open = null;
+    return this.out;
+  }
 }
 
 function checkAbort(signal?: AbortSignal): void {

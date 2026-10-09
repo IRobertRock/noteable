@@ -37,7 +37,7 @@ export function playerScreen(app: App): HTMLElement {
 
   // Position ticks only move the slider and times; everything else redraws the screen.
   const tick = (s: PlayerState) => {
-    const key = [s.entry?.item.id, s.chapter, s.playing, s.loading, s.speed, s.error, Math.round(s.duration)].join('|');
+    const key = [s.entry?.item.id, s.chapter, s.playing, s.loading, s.speed, s.error, Math.round(s.duration), s.quiz?.index].join('|');
     if (key !== lastKey) {
       lastKey = key;
       render(s);
@@ -78,6 +78,14 @@ export function playerScreen(app: App): HTMLElement {
       h('h1', null, ch ? ch.title : item.title),
       h('p', { class: 'muted' }, `Chapter ${s.chapter} of ${item.chapters.length}`),
       s.error && h('p', { class: 'error', role: 'alert' }, s.error),
+      s.quiz &&
+        h(
+          'div',
+          { class: 'banner action' },
+          h('span', null, h('strong', null, `Quiz me: question ${s.quiz.index + 1} of ${s.quiz.total}`)),
+          h('button', { class: 'small', onclick: () => void app.player.quizStep(1) }, 'Next ›'),
+          h('button', { class: 'small', onclick: () => app.player.stopQuiz() }, 'Stop'),
+        ),
       scrub,
       times,
       h(
@@ -192,7 +200,7 @@ export function bookmarkList(
                 if (target) void app.player.open(target, b.chapter, b.positionSec);
               },
             },
-            `${b.chapter}. ${title} · ${formatDuration(b.positionSec)}`,
+            b.kind === 'highlight' ? `✎ “${(b.text ?? '').slice(0, 120)}${(b.text ?? '').length > 120 ? '…' : ''}” · ${title}` : `${b.chapter}. ${title} · ${formatDuration(b.positionSec)}`,
           ),
           note,
         ),

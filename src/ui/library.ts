@@ -6,6 +6,7 @@ import type { IndexedItem } from '../library/libraryIndex';
 import { itemDuration, type Item } from '../model/item';
 import { listenedFraction } from '../player/player';
 import { continueListening } from '../library/continue';
+import { quizSegments, shuffle } from '../study/quiz';
 import { formatDuration } from './format';
 import { fill, h } from './h';
 
@@ -54,7 +55,18 @@ export function libraryScreen(app: App): HTMLElement {
         body,
         names.flatMap((name) => {
           const rows = (byCollection.get(name) ?? []).sort((a, b) => b.item.updatedAt.localeCompare(a.item.updatedAt));
-          return [h('h2', null, name), rows.length ? h('div', { class: 'list' }, rows.map((x) => itemRow(app, x))) : h('p', { class: 'muted small' }, 'Empty')];
+          const segs = quizSegments(rows);
+          const withAudio = rows.filter((x) => !x.item.review && x.item.chapters.some((c) => c.status === 'done')).length;
+          return [
+            h(
+              'div',
+              { class: 'collection-head' },
+              h('h2', null, name),
+              segs.length > 0 && h('button', { class: 'small', onclick: () => void app.player.startQuiz(shuffle(segs)).then(() => app.go('#/player')) }, `🎧 Quiz me (${segs.length})`),
+              withAudio > 1 && h('button', { class: 'small', onclick: () => app.go(`#/review/${encodeURIComponent(name)}`) }, 'Build a review'),
+            ),
+            rows.length ? h('div', { class: 'list' }, rows.map((x) => itemRow(app, x))) : h('p', { class: 'muted small' }, 'Empty'),
+          ];
         }),
       );
     }
