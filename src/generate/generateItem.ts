@@ -12,6 +12,7 @@ import type { CreateMp3Writer } from '../audio/mp3';
 import type { LoadProgress, TtsEngine } from '../tts/engine';
 import { speechPlan, spokenChars } from '../tts/speechText';
 import { readPronunciations } from '../tts/pronounce';
+import { levelPcm } from '../audio/level';
 import { hashText, type CheckpointStore, type PendingStore } from './pending';
 
 /** Save a mid-chapter checkpoint after this much new audio. */
@@ -140,7 +141,7 @@ export async function generateItem(itemPath: string, voice: string, deps: Genera
         // Multi-voice guides: questions, answers and headings can each have their own voice.
         const pcm = await engine.generate(step.say, (step.role && item.voices?.[step.role]) || voice);
         genMs += now() - t0;
-        writer.push(pcm);
+        writer.push(levelPcm(pcm));
         said += step.say.length;
         progress.chapterFraction = said / total;
         progress.audioSec += pcm.length / 24000;

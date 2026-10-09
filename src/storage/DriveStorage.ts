@@ -8,6 +8,7 @@ import {
   normalizePath,
   readJson,
   writeJson,
+  type ChangedFile,
   type Entry,
   type ExternalEntry,
   type Job,
@@ -264,6 +265,44 @@ export class DriveStorage implements Storage {
 
   async exportById(id: string, mimeType: string): Promise<Blob> {
     return (await this.request(`${API}/files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent(mimeType)}`)).blob();
+  }
+
+  async changes(token?: string): Promise<{ token: string; changed: ChangedFile[] }> {
+    if (!token) {
+      const res = await this.request(`${API}/changes/startPageToken`);
+      return { token: ((await res.json()) as { startPageToken: string }).startPageToken, changed: [] };
+    }
+    const changed: ChangedFile[] = [];
+    let page: string | undefined = token;
+    let next = token;
+    while (page) {
+      const params = new URLSearchParams({
+        pageToken: page,
+        pageSize: '1000',
+        spaces: 'drive',
+        includeRemoved: 'true',
+        fields: 'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,parents,trashed))',
+      });
+      const res = await this.request(`${API}/changes?${params}`);
+      const body = (await res.json()) as {
+        nextPageToken?: string;
+        newStartPageToken?: string;
+        changes: { fileId: string; removed?: boolean; file?: { id: string; name: string; mimeType: string; parents?: string[]; trashed?: boolean } }[];
+      };
+      for (const c of body.changes) {
+        changed.push({ id: c.fileId, name: c.file?.name, parents: c.file?.parents ?? [], removed: !!c.removed || !!c.file?.trashed, isFolder: c.file?.mimeType === FOLDER });
+      }
+      page = body.nextPageToken;
+      if (body.newStartPageToken) next = body.newStartPageToken;
+    }
+    // Anything that moved or vanished may invalidate cached paths.
+    if (changed.some((c) => c.removed || c.isFolder)) this.clearCachedPaths();
+    return { token: next, changed };
+  }
+
+  /** Drops cached path → id lookups (keeps the root). */
+  private clearCachedPaths(): void {
+    for (const key of [...this.cache.keys()]) if (key) this.cache.delete(key);
   }
 
   // ---- internals ----

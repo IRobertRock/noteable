@@ -1,5 +1,6 @@
 import { editHash, readHash, type App } from '../app';
 import { aboutMinutes, estimate, LONG_JOB_SEC, type Estimate } from '../generate/estimate';
+import { playPcm, voiceSample } from '../generate/jobs';
 import { currentJob, deviceName, onJobChange, retryUploads, startJob, stopJob, waitingChapters, type JobState } from '../generate/jobs';
 import { enterSleepMode } from '../sleep/sleepScreen';
 import { activeJobFor, listJobs, sendToDesktop, type JobView } from '../queue/jobs';
@@ -348,7 +349,39 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
       { class: 'generate' },
       h('h2', null, 'Generate'),
       item.error && !mine?.running && h('p', { class: 'error' }, `Last run stopped: ${item.error}`),
-      h('label', { class: 'field' }, h('span', null, 'Voice'), select),
+      h(
+        'div',
+        { class: 'field' },
+        h('span', null, 'Voice'),
+        h(
+          'div',
+          { class: 'voice-row' },
+          select,
+          h(
+            'button',
+            {
+              class: 'small',
+              'aria-label': 'Hear this voice',
+              onclick: async (e: Event) => {
+                const btn = e.currentTarget as HTMLButtonElement;
+                const v = VOICES.find((x) => x.id === voice) ?? VOICES[0];
+                btn.textContent = '…';
+                btn.disabled = true;
+                try {
+                  playPcm(await voiceSample(v.id, v.name));
+                } catch (err) {
+                  message = `Couldn't play a sample: ${(err as Error).message}`;
+                  render();
+                } finally {
+                  btn.textContent = '▶ Hear';
+                  btn.disabled = false;
+                }
+              },
+            },
+            '▶ Hear',
+          ),
+        ),
+      ),
       voice !== item.voice && started && h('p', { class: 'muted small' }, 'Changing the voice regenerates every chapter.'),
       estimateLine && h('p', { class: 'muted small' }, estimateLine),
       long && !mine?.running && !desktopJob && h('p', { class: 'banner' }, 'This is a long job (over 45 minutes of audio). The phone may get warm; Send to desktop is the better choice for jobs this size.'),

@@ -76,6 +76,18 @@ export interface Storage {
   readById?(id: string): Promise<Blob>;
   /** Converts a Google Docs/Slides file, e.g. to text/markdown or .pptx. */
   exportById?(id: string, mimeType: string): Promise<Blob>;
+
+  // Phase 11: what changed since `token` (Drive's change feed). Without a token,
+  // returns a starting token and no changes.
+  changes?(token?: string): Promise<{ token: string; changed: ChangedFile[] }>;
+}
+
+export interface ChangedFile {
+  id: string;
+  name?: string;
+  parents: string[];
+  removed: boolean;
+  isFolder: boolean;
 }
 
 export interface ExternalEntry {

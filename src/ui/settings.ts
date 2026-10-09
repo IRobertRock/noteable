@@ -4,6 +4,9 @@ import { readSettings, updateSettings } from '../settings';
 import { ZoteroClient } from '../zotero/client';
 import { logTail } from '../log';
 import { pronunciationsSection } from './pronunciations';
+import { loadAppearance, saveAppearance, type Appearance } from './theme';
+import { listBackups, restoreBackup } from '../sync/backups';
+import { kvGet, kvSet } from '../db';
 import { deviceName } from '../generate/jobs';
 import { LOG_REQUEST_PATH } from '../queue/logRequest';
 import { formatBytes } from './format';
@@ -138,6 +141,46 @@ export function settingsSection(app: App): HTMLElement {
     }
   });
 
+  // Appearance (this device)
+  const look = loadAppearance();
+  const choice = <K extends keyof Appearance>(key: K, label: string, options: [Appearance[K], string][]) => {
+    const sel = h('select', { 'aria-label': label }, options.map(([v, text]) => h('option', { value: String(v), selected: look[key] === v }, text))) as HTMLSelectElement;
+    sel.addEventListener('change', () => {
+      const raw = sel.value;
+      (look as unknown as Record<string, unknown>)[key] = key === 'textSize' ? Number(raw) : raw;
+      saveAppearance(look);
+    });
+    return h('label', { class: 'field' }, h('span', null, label), sel);
+  };
+
+  // Auto-download on Wi-Fi (this device)
+  const autoBox = h('input', { type: 'checkbox', checked: true }) as HTMLInputElement;
+  void kvGet<boolean>('autoDownload').then((v) => (autoBox.checked = v !== false));
+  autoBox.addEventListener('change', () => void kvSet('autoDownload', autoBox.checked));
+
+  // Restore progress from a daily safety copy
+  const restoreStatus = h('span', { class: 'muted small' });
+  const restoreSel = h('select', { 'aria-label': 'Safety copy to restore' }, h('option', { value: '' }, 'Loading…')) as HTMLSelectElement;
+  void listBackups(app.storage).then((days) => {
+    fill(restoreSel, h('option', { value: '' }, days.length ? 'Choose a day…' : 'No safety copies yet'), days.map((d) => h('option', { value: d }, d)));
+  });
+  const restoreBtn = h('button', { class: 'small' }, 'Restore') as HTMLButtonElement;
+  restoreBtn.addEventListener('click', async () => {
+    const day = restoreSel.value;
+    if (!day || !confirm(`Replace your listening positions, bookmarks, flashcard results and Up next with the copy from ${day}? Changes since then are lost.`)) return;
+    restoreStatus.textContent = 'Restoring…';
+    try {
+      await app.reconnectNow();
+      const done = await restoreBackup(app.storage, day);
+      // Drop this device's copies so the restored files win on the next sync.
+      for (const k of ['state.playback', 'state.bookmarks', 'state.cards', 'state.upnext']) await kvSet(k, undefined);
+      restoreStatus.textContent = `Restored ${done.length} files. Reloading…`;
+      setTimeout(() => location.reload(), 800);
+    } catch (err) {
+      restoreStatus.textContent = (err as Error).message;
+    }
+  });
+
   return h(
     'div',
     { class: 'settings' },
@@ -146,9 +189,28 @@ export function settingsSection(app: App): HTMLElement {
     pronunciationsSection(app),
     zotero,
     h('h2', null, 'This device'),
+    choice('theme', 'Theme', [
+      ['dark', 'Dark'],
+      ['light', 'Light'],
+      ['system', 'Same as the phone'],
+    ]),
+    choice('textSize', 'Reading text size', [
+      [1, 'Small'],
+      [2, 'Normal'],
+      [3, 'Large'],
+      [4, 'Extra large'],
+    ]),
+    choice('spacing', 'Line spacing', [
+      ['normal', 'Normal'],
+      ['roomy', 'Roomy'],
+    ]),
+    h('label', { class: 'check' }, autoBox, ' On Wi-Fi, download Up next and new desktop audio automatically (up to 1 GB)'),
     storageLine,
     h('h2', null, 'Downloads'),
     downloadsList,
+    h('h2', null, 'Safety copies'),
+    h('p', { class: 'muted small' }, 'Your positions, bookmarks, flashcard results and Up next are copied to Drive once a day (last 7 days kept).'),
+    h('div', { class: 'field' }, restoreSel, restoreBtn, restoreStatus),
     h('h2', null, 'Help'),
     h('div', { class: 'field' }, report, reportStatus),
   );

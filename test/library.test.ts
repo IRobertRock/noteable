@@ -117,3 +117,35 @@ describe('listenedFraction', () => {
     expect(listenedFraction({ path: itemPath, item }, 1, 0)).toBe(0);
   });
 });
+
+describe('library change feed', () => {
+  it('re-reads only the item that changed, and rescans when a new item appears', async () => {
+    const { drive, storage, itemPath, item } = await readyItem();
+    const index = new LibraryIndex(storage, memoryIndex());
+    await index.refresh();
+    expect(index.items).toHaveLength(1);
+
+    // An edit to one item.json: only that item is re-read (no listing of collections).
+    await writeJson(storage, `${itemPath}/item.json`, { ...item, title: 'Renamed in Drive' });
+    drive.calls = [];
+    await index.refreshChanges();
+    expect(index.items[0].item.title).toBe('Renamed in Drive');
+    expect(drive.calls.filter((c) => c.url.includes("in+parents") || c.url.includes('in%20parents')).length).toBeLessThanOrEqual(2);
+
+    // A new item folder in the collection: full rescan picks it up.
+    await storage.write('Inbox/new.md', '## A\nNew item.\n');
+    const { importMarkdown: im } = await import('../src/import/importMarkdown');
+    await im(storage, 'Inbox/new.md');
+    await index.refreshChanges();
+    expect(index.items.map((x) => x.item.title).sort()).toEqual(['Renamed in Drive', 'new']);
+  });
+
+  it('nothing changed → no item reads', async () => {
+    const { drive, storage } = await readyItem();
+    const index = new LibraryIndex(storage, memoryIndex());
+    await index.refresh();
+    drive.calls = [];
+    await index.refreshChanges();
+    expect(drive.calls.some((c) => c.url.includes('alt=media'))).toBe(false);
+  });
+});

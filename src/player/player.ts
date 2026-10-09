@@ -11,12 +11,11 @@ import { kvGet, kvSet } from '../db';
 import { coverFor } from './artwork';
 import { silenceMap, skipTarget, SKIP_FROM_SPEED, type Silence } from './skipSilence';
 import type { QuizSegment } from '../study/quiz';
+import { smartRewindSec } from './rewind';
 
 export const SKIP_SEC = 15;
 const SAVE_EVERY_MS = 10_000;
 const SYNC_EVERY_MS = 30_000;
-/** Resume a little earlier than where you stopped, for context. */
-const RESUME_REWIND_SEC = 2;
 
 export interface PlayerState {
   entry: IndexedItem | null;
@@ -157,7 +156,8 @@ export class Player {
     this.entry = entry;
     this.speed = clampSpeed(saved?.speed ?? 1);
     const n = chapter ?? saved?.chapter ?? firstPlayable(entry);
-    const pos = position ?? (chapter === undefined && saved ? Math.max(0, saved.positionSec - RESUME_REWIND_SEC) : 0);
+    // Smart rewind: the longer since you last listened, the more you hear again.
+    const pos = position ?? (chapter === undefined && saved ? Math.max(0, saved.positionSec - smartRewindSec(saved.updatedAt)) : 0);
     await this.loadChapter(n, pos, true);
   }
 

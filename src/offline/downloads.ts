@@ -16,6 +16,8 @@ export interface DownloadRecord {
   chapters: number[];
   bytes: number;
   at: string;
+  /** Downloaded automatically on Wi-Fi (may be removed to make room); manual downloads never are. */
+  auto?: boolean;
 }
 
 /** Minimal Cache Storage surface, so tests can use a fake. */
@@ -88,7 +90,7 @@ export class Downloads {
     return item.chapters.filter((c) => c.status === 'done' && !c.excluded).every((c) => r.chapters.includes(c.n));
   }
 
-  async download({ path, item }: IndexedItem): Promise<void> {
+  async download({ path, item }: IndexedItem, opts: { auto?: boolean } = {}): Promise<void> {
     const chapters = item.chapters.filter((c) => c.status === 'done' && !c.excluded && c.audioFile);
     let bytes = 0;
     // Ask the browser not to clear downloads when space runs low (granted readily to installed apps).
@@ -104,7 +106,7 @@ export class Downloads {
         this.active.set(item.id, (i + 1) / chapters.length);
         this.emit();
       }
-      this.records = { ...this.records, [item.id]: { itemId: item.id, chapters: chapters.map((c) => c.n), bytes, at: new Date().toISOString() } };
+      this.records = { ...this.records, [item.id]: { itemId: item.id, chapters: chapters.map((c) => c.n), bytes, at: new Date().toISOString(), ...(opts.auto ? { auto: true } : {}) } };
       await this.texts.setRecords(this.records);
     } finally {
       this.active.delete(item.id);

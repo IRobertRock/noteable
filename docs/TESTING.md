@@ -19,6 +19,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 8 | Continue listening, Up next, skip silence, desktop status, problem reports, delete | **Not tested yet** |
 | 9 | Flashcards, Quiz me, highlights, Ask Claude, course reviews | **Not tested yet** |
 | 10 | GPU desktop, pronunciations, two voices, Share to Noteable, picture slides, maths/tables | **Not tested yet** |
+| 11 | Smart rewind, car mode, auto-download on Wi-Fi, voice samples, light theme, safety copies | **Not tested yet** |
 
 ---
 
@@ -180,6 +181,20 @@ Uses the Phase 7 guide (**ECON 1000 Week 3 — Opportunity Cost (study guide)**)
 - [ ] 5. Share a PDF from Files or Gmail → Noteable → **Import**. The text preview opens.
 - [ ] 6. **Send to desktop** something long. On the PC, tray → **Open log**: you see "Voice engine: GPU (WebGPU in headless Chrome)", and "Done … at N× real time" with N above 8.5 for long items.
 - [ ] 7. Optional: import a slide deck that has screenshot-only slides; their text shows in the preview.
+
+---
+
+## Phase 11 — daily polish (about 15 minutes)
+
+> Done when: Rob resumes an item the next day and hears the last ~20 s again, drives with Car mode, finds Up next items already downloaded after being on home Wi-Fi, picks a voice by listening to samples, and restores yesterday's progress from a safety copy.
+
+- [ ] 1. Play something, stop, and come back the next day. It starts about 20 seconds before where you stopped (2 s if you were only away a few minutes).
+- [ ] 2. Player tab → **🚗 Car mode**. Big buttons; the screen stays on. **Next chapter** works. Phone Back or ✕ closes it.
+- [ ] 3. Add two items to **Up next** that aren't downloaded. On home Wi-Fi, open Noteable and wait a couple of minutes. Library shows them as downloaded. (Account → This device has the on/off switch.)
+- [ ] 4. Open a new item → **▶ Hear** next to the voice list. You hear "Hello, I'm …" in that voice. Try another voice. (The first one on the phone takes longer.)
+- [ ] 5. Account → **Theme** → **Light**. The whole app turns light. Try **Reading text size** → Large, then open **Read** on an item.
+- [ ] 6. The day after first using this version, Account → **Safety copies** lists yesterday. Choose it → **Restore** → confirm. The app reloads with that day's positions.
+- [ ] 7. Generate a new chapter with two different voices (or a multi-voice guide). The volume is even between them.
 
 ---
 

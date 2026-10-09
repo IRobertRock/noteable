@@ -16,7 +16,7 @@ export function libraryScreen(app: App): HTMLElement {
   const status = h('p', { class: 'muted small' });
   const shelf = h('div');
   const body = h('div');
-  const refreshBtn = h('button', { class: 'small', onclick: () => void refresh() }, 'Refresh');
+  const refreshBtn = h('button', { class: 'small', onclick: () => void refresh(true) }, 'Refresh');
   const screen = h('section', { class: 'screen' }, h('div', { class: 'title-row' }, h('h1', null, 'Library'), refreshBtn), status, shelf, body);
 
   const render = () => {
@@ -73,11 +73,11 @@ export function libraryScreen(app: App): HTMLElement {
     status.textContent = app.library.lastSynced ? `Updated ${app.library.lastSynced.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : navigator.onLine ? 'Checking Drive…' : 'Offline — showing what this device knows.';
   };
 
-  const refresh = async () => {
+  const refresh = async (full = false) => {
     if (!navigator.onLine) return render();
     refreshBtn.setAttribute('disabled', '');
     try {
-      await Promise.all([app.library.refresh(), app.state.sync()]);
+      await Promise.all([full ? app.library.refresh() : app.library.refreshChanges(), app.state.sync()]);
     } catch (err) {
       status.textContent = `Couldn't reach Drive: ${(err as Error).message}`;
     } finally {

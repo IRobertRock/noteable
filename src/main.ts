@@ -1,6 +1,11 @@
 import './style.css';
 import { registerSW } from 'virtual:pwa-register';
 import { installErrorLogging, logLine } from './log';
+import { applyAppearance, watchSystemTheme } from './ui/theme';
+import { backupIfDue } from './sync/backups';
+import { onWifi, planAutoDownloads } from './offline/autoDownload';
+import { listJobs } from './queue/jobs';
+import { kvGet } from './db';
 import type { App } from './app';
 import { GoogleAuth, NeedsTapError } from './auth/google';
 import { ROOT_FOLDER } from './config';
@@ -31,6 +36,8 @@ import { settingsSection } from './ui/settings';
 import { signInScreen } from './ui/signin';
 
 registerSW({ immediate: true });
+applyAppearance();
+watchSystemTheme();
 
 const root = document.getElementById('app')!;
 const auth = new GoogleAuth();
@@ -240,8 +247,10 @@ async function afterSignIn(): Promise<void> {
 /** Pull the latest library and playback state from Drive (and push local changes). */
 async function syncAll(): Promise<void> {
   if (!navigator.onLine || auth.state !== 'signed-in') return;
-  const results = await Promise.allSettled([state.sync(), library.refresh()]);
+  const results = await Promise.allSettled([state.sync(), library.refreshChanges()]);
   for (const r of results) if (r.status === 'rejected') logLine('Sync with Drive failed', r.reason);
+  void backupIfDue(storage).catch((err) => logLine('Daily safety copy failed', err));
+  void runAutoDownloads().catch((err) => logLine('Auto-download failed', err));
 }
 
 async function checkLayout(): Promise<void> {
@@ -264,6 +273,33 @@ async function signOut(revoke: boolean): Promise<void> {
   ui.layout = null;
   ui.layoutError = undefined;
   render();
+}
+
+let autoRunning = false;
+/** On Wi-Fi: fetch Up next and this week's desktop jobs onto the phone, within the cap. */
+async function runAutoDownloads(): Promise<void> {
+  if (autoRunning || !onWifi() || (await kvGet<boolean>('autoDownload')) === false) return;
+  autoRunning = true;
+  try {
+    const plan = planAutoDownloads({
+      items: library.items,
+      upNext: state.upNext.items,
+      jobs: await listJobs(storage).catch(() => []),
+      records: downloads.records,
+      isDownloaded: (x) => downloads.isDownloaded(x.item),
+    });
+    for (const id of plan.evict) {
+      const x = library.byId(id);
+      if (x) await downloads.remove(x.item);
+    }
+    for (const x of plan.download) {
+      if (!onWifi()) break;
+      await downloads.download(x, { auto: true });
+      logLine(`Auto-downloaded ${x.path}`);
+    }
+  } finally {
+    autoRunning = false;
+  }
 }
 
 function errorText(err: unknown): string {

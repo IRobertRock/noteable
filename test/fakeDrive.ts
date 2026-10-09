@@ -38,6 +38,8 @@ export class FakeDrive {
   /** Throw a network error on the Nth resumable chunk PUT (1-based). */
   dropChunk?: number;
   chunkPuts = 0;
+  /** File ids in the order they changed (the change feed). */
+  changeLog: string[] = [];
   private sessions = new Map<string, { fileId?: string; name?: string; parent?: string; mimeType: string; size: number; data: string }>();
   private seq = 0;
   private clock = Date.parse('2026-10-06T12:00:00Z');
@@ -46,6 +48,7 @@ export class FakeDrive {
     const at = new Date(this.clock++).toISOString();
     const f: FakeFile = { id: `id${++this.seq}`, name, mimeType, parents: [parent], trashed: false, content, createdTime: at, modifiedTime: at };
     this.files.set(f.id, f);
+    this.changeLog.push(f.id);
     return f;
   }
 
@@ -76,6 +79,15 @@ export class FakeDrive {
     const fail = this.failures.shift();
     if (fail) return json({ error: { code: fail, message: fail === 403 ? 'rateLimitExceeded' : 'fail' } }, fail);
 
+    if (url.pathname === '/drive/v3/changes/startPageToken') return json({ startPageToken: String(this.changeLog.length) });
+    if (url.pathname === '/drive/v3/changes') {
+      const from = Number(url.searchParams.get('pageToken'));
+      const changes = this.changeLog.slice(from).map((id) => {
+        const f = this.files.get(id)!;
+        return { fileId: id, removed: false, file: { id, name: f.name, mimeType: f.mimeType, parents: f.parents, trashed: f.trashed } };
+      });
+      return json({ changes, newStartPageToken: String(this.changeLog.length) });
+    }
     const m = url.pathname.match(/^\/(upload\/)?drive\/v3\/files(?:\/([^/]+))?$/);
     if (!m) return json({ error: 'unknown route' }, 404);
     const [, upload, id] = m;
@@ -123,6 +135,7 @@ export class FakeDrive {
         if (add && remove) f.parents = f.parents.filter((p) => p !== remove).concat(add);
       }
       f.modifiedTime = new Date(this.clock++).toISOString();
+      this.changeLog.push(f.id);
       return json(meta(f));
     }
     return json({ error: 'unhandled' }, 400);
@@ -146,6 +159,7 @@ export class FakeDrive {
       const f = this.files.get(s.fileId)!;
       f.content = s.data;
       f.modifiedTime = new Date(this.clock++).toISOString();
+      this.changeLog.push(f.id);
       return json(meta(f));
     }
     return json(meta(this.add(s.name!, s.parent!, s.mimeType, s.data)));

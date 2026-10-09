@@ -151,7 +151,7 @@ button.round { width: 48px; height: 48px; padding: 0; border-radius: 50%; flex: 
 .reader .margin:empty { display: none; }
 .reader .margin { display: flex; flex-direction: column; gap: 4px; float: right; max-width: 40%; margin: 8px 0 8px 12px; }
 .margin-note { font-size: 0.8rem; text-align: left; padding: 6px 8px; min-height: 0; border-radius: 8px; color: var(--accent); background: var(--surface); }
-.prose { font-size: 1.05rem; line-height: 1.65; }
+.prose { font-size: var(--reader-size, 1.05rem); line-height: var(--reader-line, 1.65); }
 .prose h2 { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 1.25rem; margin-top: 24px; }
 .prose p, .prose li { margin: 0.6em 0; }
 .prose strong { color: #fff; }
@@ -252,3 +252,30 @@ input[type=text] { font: inherit; color: var(--text); background: var(--bg); bor
 /* ---- phase 10 ---- */
 .pron li { gap: 8px; }
 .pron input[type=text] { flex: 1; min-width: 0; }
+
+/* ---- phase 11: light theme, car mode, voice samples ---- */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --line: #ddd8cc;
+  --text: #1d1f23;
+  --muted: #5f6670;
+  --accent: #b5770d;
+  --accent-text: #ffffff;
+  --ok: #217a4b;
+  --new: #1f6fb2;
+  --bad: #b3362b;
+}
+:root[data-theme='light'] .prose strong { color: #000; }
+:root[data-theme='light'] .dock { background: color-mix(in srgb, var(--bg) 94%, transparent); }
+.voice-row { display: flex; gap: 8px; }
+.voice-row select { flex: 1; }
+.car { position: fixed; inset: 0; z-index: 950; background: #000; color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 28px; padding: 24px; text-align: center; }
+.car-title { font-size: 1.8rem; font-weight: 700; }
+.car-sub { color: #aab; font-size: 1.1rem; }
+.car-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
+.car-btn { width: 110px; height: 110px; border-radius: 50%; font-size: 1.5rem; background: #1c1f26; color: #fff; border: 0; }
+.car-play { width: 160px; height: 160px; border-radius: 50%; font-size: 3rem; background: #f2b84b; color: #1a1406; border: 0; }
+.car-next { align-self: center; min-width: 260px; min-height: 80px; font-size: 1.4rem; background: #1c1f26; color: #fff; border: 0; border-radius: 40px; }
+.car-close { position: absolute; top: 16px; right: 16px; width: 56px; height: 56px; border-radius: 50%; background: #1c1f26; color: #fff; border: 0; font-size: 1.3rem; }

@@ -3,6 +3,7 @@ import { SKIP_SEC, type PlayerState } from '../player/player';
 import { SPEEDS, type Bookmark } from '../sync/state';
 import { formatDuration } from './format';
 import { fill, h } from './h';
+import { openCarMode } from './carMode';
 
 /** Slim bar above the tabs while something is loaded. Updated in place so taps aren't lost. */
 export function miniPlayer(app: App): HTMLElement {
@@ -124,6 +125,7 @@ export function playerScreen(app: App): HTMLElement {
           '🔖 Bookmark',
         ),
         h('button', { onclick: () => app.go(readHash(path)) }, 'Read'),
+        h('button', { onclick: () => openCarMode(app) }, '🚗 Car mode'),
       ),
       h('h2', null, 'Bookmarks'),
       marks.length ? bookmarkList(app, marks, item.chapters, noteFor, () => (noteFor = null)) : h('p', { class: 'muted small' }, 'None yet. Tap Bookmark to save this spot.'),

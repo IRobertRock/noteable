@@ -2,6 +2,7 @@
 // moving between screens doesn't stop it.
 
 import { createMp3Writer } from '../audio/mp3';
+import { kvGet, kvSet } from '../db';
 import { ITEM_FILE, type Item } from '../model/item';
 import { holdWakeLock, releaseWakeLock } from '../sleep/wakeLock';
 import { readJson, type Storage } from '../storage/Storage';
@@ -121,6 +122,31 @@ export async function retryUploads(storage: Storage, itemPath: string): Promise<
 
 export async function waitingChapters(itemPath: string): Promise<number> {
   return (await idbPending.list(itemPath)).length;
+}
+
+/**
+ * A short sample of a voice, generated once on this device and cached. The first
+ * sample on a device downloads the voice model (~310 MB).
+ */
+export async function voiceSample(voiceId: string, name: string): Promise<Float32Array> {
+  const key = `sample.${voiceId}`;
+  const cached = await kvGet<Float32Array>(key);
+  if (cached) return cached;
+  await engine.load();
+  const pcm = await engine.generate(`Hello, I'm ${name}. This is how I sound in Noteable.`, voiceId);
+  await kvSet(key, pcm);
+  return pcm;
+}
+
+let sampleCtx: AudioContext | null = null;
+export function playPcm(pcm: Float32Array): void {
+  sampleCtx ??= new AudioContext();
+  const buf = sampleCtx.createBuffer(1, pcm.length, 24000);
+  buf.copyToChannel(new Float32Array(pcm), 0);
+  const src = sampleCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(sampleCtx.destination);
+  src.start();
 }
 
 export function deviceName(): string {
