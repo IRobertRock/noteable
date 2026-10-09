@@ -7,7 +7,7 @@ import { createMp3Writer } from '../src/audio/mp3';
 import { DriveStorage } from '../src/storage/DriveStorage';
 import { DesktopAuth, SignInNeeded } from './auth';
 import { CHECKPOINT_DIR, HEARTBEAT_MS, LOCK_FILE, LOG_FILE, PENDING_DIR, POLL_MS, readConfig } from './config';
-import { NodeKokoroEngine } from './engine';
+import { AutoEngine } from './gpuEngine';
 import { log } from './log';
 import { QueueWorker } from './queue';
 import { answerLogRequest, writeStatus } from './status';
@@ -40,9 +40,10 @@ async function main(): Promise<void> {
 
   const auth = new DesktopAuth(cfg);
   const storage = new DriveStorage({ getToken: auth.getToken, refreshToken: auth.refreshToken, rootName: cfg.rootName });
+  const engine = new AutoEngine(log);
   const worker = new QueueWorker({
     storage,
-    engine: new NodeKokoroEngine(),
+    engine,
     createWriter: createMp3Writer,
     pending: filePending(PENDING_DIR),
     checkpoints: fileCheckpoints(CHECKPOINT_DIR),
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
     log('Quitting.');
     clearTimeout(timer);
     clearInterval(statusTimer);
+    await engine.close().catch(() => {});
     await tray?.kill().catch(() => {});
     process.exit(0);
   };

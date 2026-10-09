@@ -1,5 +1,5 @@
 // Runs the real worker pieces (Kokoro on CPU, MP3 encoder, on-disk stores) end to end
-// against an in-memory Drive. No Google account needed.  Run: npx tsx worker/selftest.ts
+// against an in-memory Drive. No Google account needed.  Run: npx tsx worker/selftest.ts [--gpu]
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import type { Item } from '../src/model/item';
 import { readJson, type Job } from '../src/storage/Storage';
 import { FakeDrive, makeStorage } from '../test/fakeDrive';
 import { NodeKokoroEngine } from './engine';
+import { AutoEngine } from './gpuEngine';
 import { QueueWorker } from './queue';
 import { fileCheckpoints, filePending } from './stores';
 
@@ -24,7 +25,7 @@ const id = await storage.enqueue({ itemPath, chapters: [1, 2], voice: 'bm_fable'
 
 const worker = new QueueWorker({
   storage,
-  engine: new NodeKokoroEngine(),
+  engine: process.argv.includes('--gpu') ? new AutoEngine((m, e) => console.log(m, e ?? '')) : new NodeKokoroEngine(),
   createWriter: createMp3Writer,
   pending: filePending(join(dir, 'pending')),
   checkpoints: fileCheckpoints(join(dir, 'checkpoints')),
@@ -42,3 +43,4 @@ console.log(
     `mp3=${mp3.length}B header=${mp3.subarray(0, 2).toString('hex')} rtf=${item.lastGenerated?.realTimeFactor} seconds=${((performance.now() - t) / 1000).toFixed(1)}`,
 );
 rmSync(dir, { recursive: true, force: true });
+process.exit(0); // closes headless Chrome if the GPU engine was used
