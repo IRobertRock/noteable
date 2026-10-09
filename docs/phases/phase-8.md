@@ -1,6 +1,6 @@
 # Phase 8 — Everyday listening and housekeeping
 
-Status: **planned** (not started). Proposed by Claude on 2026-10-08 from Rob's "All 20" (upgrades 1–5, 13, 14, 19, 20). Not part of the original spec.
+Status: **built, gate not yet tested**. Deployed 2026-10-08; gate steps in `docs/TESTING.md`. Proposed by Claude on 2026-10-08 from Rob's "All 20" (upgrades 1–5, 13, 14, 19, 20). Not part of the original spec.
 
 ## Goal
 
@@ -26,17 +26,17 @@ Daily use feels smooth: I pick up where I was from the top of the Library, line 
 
 ## Steps
 
-1. [ ] `src/library/continue.ts` + Library header section; unit tests for "started but unfinished" rules (finished = within 30 s of the end of the last chapter).
-2. [ ] Playback state v2: `items[id].chapters[n] = { maxPositionSec }` alongside the current position (backward compatible; merge takes the max per chapter). `src/sync/state.ts`, migration test.
-3. [ ] `src/player/upNext.ts` (queue model + `State/upnext.json` sync, latest-wins), player `ended` → next item; Up next list on the Player tab with reorder/remove.
-4. [ ] `src/player/skipSilence.ts`: Web Audio `AnalyserNode` on the audio element; when the level stays under a threshold for 0.8 s at ≥1.25×, jump ahead to where the sound resumes (bounded; never inside a review pause, detected as silence ≥ 4.5 s). Toggle in the player (default on).
+1. [x] `src/library/continue.ts` + Library header section; unit tests for "started but unfinished" rules (finished = within 30 s of the end of the last chapter).
+2. [x] Playback state v2: `items[id].chapters[n] = { maxPositionSec }` alongside the current position (backward compatible; merge takes the max per chapter). `src/sync/state.ts`, migration test.
+3. [x] `src/player/upNext.ts` (queue model + `State/upnext.json` sync, latest-wins), player `ended` → next item; Up next list on the Player tab with reorder/remove.
+4. [x] `src/player/skipSilence.ts`: Web Audio `AnalyserNode` on the audio element; when the level stays under a threshold for 0.8 s at ≥1.25×, jump ahead to where the sound resumes (bounded; never inside a review pause, detected as silence ≥ 4.5 s). Toggle in the player (default on).
    - Risk: Web Audio on a media element can stop background playback on some Android builds. Ships behind the toggle; tested locked on the S23 before default-on.
-5. [ ] `src/player/artwork.ts`: draw a 512×512 cover (collection name + colour hash) on canvas → blob URL for Media Session; shorter metadata titles.
-6. [ ] Worker: write `State/worker.json` on each poll (`lastSeen`, `version`, `rtf`, `paused`, `signedIn`); app `src/queue/workerStatus.ts`; indicator on item page and Queue tab.
-7. [ ] Auto-route: threshold in `settings.json` (`autoDesktopOverMin`, default 30); item page picks the primary button.
-8. [ ] `src/log.ts` ring buffer (IndexedDB, 300 lines; errors, sync failures, job events); Account → Report a problem; worker writes its tail to `Logs/` when a `Logs/request-worker.json` flag file appears.
-9. [ ] Account → Storage list; Item → Delete item (confirm dialog), `Storage.delete(itemPath)` then local cleanup.
-10. [ ] Commit, deploy, restart the worker, update this doc and `docs/TESTING.md`.
+5. [x] `src/player/artwork.ts`: draw a 512×512 cover (collection name + colour hash) on canvas → blob URL for Media Session; shorter metadata titles.
+6. [x] Worker: write `State/worker.json` on each poll (`lastSeen`, `version`, `rtf`, `paused`, `signedIn`); app `src/queue/workerStatus.ts`; indicator on item page and Queue tab.
+7. [x] Auto-route: threshold in `settings.json` (`autoDesktopOverMin`, default 30); item page picks the primary button.
+8. [x] `src/log.ts` ring buffer (IndexedDB, 300 lines; errors, sync failures, job events); Account → Report a problem; worker writes its tail to `Logs/` when a `Logs/request-worker.json` flag file appears.
+9. [x] Account → Storage list; Item → Delete item (confirm dialog), `Storage.delete(itemPath)` then local cleanup.
+10. [x] Commit, deploy, restart the worker, update this doc and `docs/TESTING.md`.
 
 ## Tests
 
@@ -57,6 +57,19 @@ Daily use feels smooth: I pick up where I was from the top of the Library, line 
 
 ## Open questions
 
-1. Skip silence: on by default at 1.25× and faster, or off by default?
-2. Auto-route threshold: 30 minutes of audio OK?
-3. Delete item: Drive trash (recoverable for 30 days) is the plan. OK?
+1. Skip silence: on by default at 1.25× and faster (Rob: go).
+2. Auto-route threshold: 30 minutes (Rob: go); change with `autoDesktopOverMin` in settings.json.
+3. Delete item goes to Drive trash (Rob: go).
+
+## Change log
+
+- 2026-10-08: built and deployed (Rob: "All 20" → "Go").
+- **Skip silence works without Web Audio routing.** Each chapter's MP3 is decoded once at 8 kHz in an `OfflineAudioContext` to find its silences, and the player jumps over them on `timeupdate`. The playing `<audio>` element is untouched, so locked-screen playback isn't at risk. The step-4 risk (Web Audio stopping background audio) is avoided rather than tested. Chapters over 45 minutes are not mapped, to save phone memory.
+- **Fixed during the browser check:** the "keep" cutoff was 4 s, so a guide's own `[pause 3s]` (2.9 s of silence) would have been skipped. It is now 2.5 s: author pauses and the 5 s answer pause are never skipped, and gaps between paragraphs (under 2 s) are shortened.
+- Per-chapter progress uses a new `heard` map (chapter → furthest seconds) on each `playback.json` entry, merged as the max across devices. Older entries without it count earlier chapters as done.
+- Up next is `State/upnext.json` (latest list wins), managed from the item page (Play next / Add to Up next) and the Player tab (reorder ↑, remove ✕).
+- The worker writes `State/worker.json` every minute on its own timer (so it stays fresh during long jobs) and on every state change. The app treats it as online if it was seen within 3 minutes, signed in and not paused.
+- Report a problem writes `Logs/<time>-<device>.md` and `Logs/request-worker.json`; the worker answers with `Logs/<time>-worker.md` and deletes the request.
+- The type check now covers `spikes/`; a duplicate variable there had broken one CI build.
+- **Browser check (pipeline page):** silences found in a real chapter. Up next started item B when item A ended, and the Up next list emptied.
+- Tests: 141. Worker restarted with the new code.

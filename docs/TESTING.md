@@ -16,6 +16,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 5 | PDF, Word, PowerPoint, EPUB, Google Docs import with cleanup | **Not tested yet** (needs a real deck + scanned reading) |
 | 6 | Send to desktop: the PC makes the audio while the phone is locked | **Not tested yet** (desktop set up and working; phone test to do) |
 | 7 | Study guides with answer pauses; Zotero import | **Not tested yet** |
+| 8 | Continue listening, Up next, skip silence, desktop status, problem reports, delete | **Not tested yet** |
 
 ---
 
@@ -133,6 +134,21 @@ If the tray icon is **red**: right-click → **Sign in to Google again**. While 
 - [ ] 9. Generate and play a chapter.
 
 If step 8 says it couldn't download the file: in Zotero, right-click the PDF → **Show File**, save a copy to Noteable/Inbox in Drive, and import it from the Inbox. Then tell Claude, so the download can be fixed.
+
+---
+
+## Phase 8 — everyday listening (about 10 minutes)
+
+> Done when: on the S23, Rob resumes from "Continue listening", plays two items back to back from Up next with the phone locked, sees "Desktop online" before sending a long item, and deletes a test item.
+
+- [ ] 1. Library: the **Continue listening** shelf shows what you last played → tap **▶ Resume**.
+- [ ] 2. On an item's page, the chapter list shows ✓ (heard), ◐ (part heard) or ○.
+- [ ] 3. Open another item → **＋ Add to Up next**. Play the first item near its end, lock the phone, and let it finish: the second one starts by itself, and the lock screen shows its title and a coloured cover with the collection name.
+- [ ] 4. Player tab: at **1.5×** with **Skip silence** ticked, gaps between paragraphs feel shorter, but a review question still pauses before its answer.
+- [ ] 5. Open the **Phase 4 Gate Test** item (if not generated yet): under Generate you see "Desktop online · seen … ago" and **🖥 Send to desktop (recommended)**.
+- [ ] 6. Queue tab: the top line says "Desktop online".
+- [ ] 7. Account → **Report a problem** → it says where the file was saved. Within a minute a "-worker.md" file appears next to it in Drive → Noteable/Logs.
+- [ ] 8. Open **Desktop Worker Test** → **Delete item…** → confirm. It's gone from the Library and in Drive's trash.
 
 ---
 
