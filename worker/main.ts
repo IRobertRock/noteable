@@ -12,6 +12,9 @@ import { log } from './log';
 import { QueueWorker } from './queue';
 import { answerLogRequest, applyControl, writeStatus } from './status';
 import { KeepAwake } from './keepAwake';
+import { chromeDecode, NodeWhisper, transcribeRecording } from './transcribe';
+import { readSettings } from '../src/settings';
+import { DEFAULT_VOICE, toVoiceId } from '../src/model/voices';
 import { fileCheckpoints, filePending } from './stores';
 import { Tray } from './tray';
 
@@ -42,7 +45,17 @@ async function main(): Promise<void> {
   const auth = new DesktopAuth(cfg);
   const storage = new DriveStorage({ getToken: auth.getToken, refreshToken: auth.refreshToken, rootName: cfg.rootName });
   const engine = new AutoEngine(log);
+  const whisper = new NodeWhisper();
   const worker = new QueueWorker({
+    transcribe: async (job, onDetail) =>
+      transcribeRecording(job, {
+        storage,
+        decode: chromeDecode,
+        asr: whisper.transcribe,
+        createWriter: createMp3Writer,
+        voice: toVoiceId((await readSettings(storage).catch(() => ({ voice: DEFAULT_VOICE }))).voice) ?? DEFAULT_VOICE,
+        onDetail,
+      }),
     storage,
     engine,
     createWriter: createMp3Writer,

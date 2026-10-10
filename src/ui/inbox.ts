@@ -9,6 +9,8 @@ import type { Entry } from '../storage/Storage';
 import { formatBytes, formatDate } from './format';
 import { fill, h } from './h';
 import { runImport } from './importRun';
+import { isRecording } from '../import/transcript';
+import { sendRecording } from '../queue/jobs';
 
 export function inboxScreen(app: App): HTMLElement {
   const message = h('div');
@@ -18,11 +20,25 @@ export function inboxScreen(app: App): HTMLElement {
   let selected: Entry[] = [];
   let packTitle = '';
 
-  const upload = h('input', { type: 'file', accept: ACCEPT, multiple: true, hidden: true }) as HTMLInputElement;
-  upload.addEventListener('change', () => {
+  const upload = h('input', { type: 'file', accept: `${ACCEPT},audio/*`, multiple: true, hidden: true }) as HTMLInputElement;
+  upload.addEventListener('change', async () => {
     const files = Array.from(upload.files ?? []);
     upload.value = '';
-    if (files.length) void runImport(app, files.map((file) => ({ kind: 'upload', file })));
+    // Recordings go to the Inbox in Drive, where Transcribe on desktop picks them up.
+    const recordings = files.filter((f) => isRecording(f.name, f.type));
+    const docs = files.filter((f) => !recordings.includes(f));
+    for (const f of recordings) {
+      message.replaceChildren(h('p', { class: 'muted' }, `Uploading ${f.name}…`));
+      try {
+        await app.reconnectNow();
+        await app.storage.write(`Inbox/${f.name}`, f, f.type || undefined);
+        message.replaceChildren(h('p', { class: 'muted' }, `${f.name} is in the Inbox. Tap 🎙 Transcribe on desktop.`));
+      } catch (err) {
+        message.replaceChildren(h('p', { class: 'error', role: 'alert' }, `Upload failed: ${(err as Error).message}`));
+      }
+    }
+    if (recordings.length) void load();
+    if (docs.length) void runImport(app, docs.map((file) => ({ kind: 'upload', file })));
   });
 
   const screen = h(
@@ -90,8 +106,20 @@ export function inboxScreen(app: App): HTMLElement {
                 selected = check.checked ? [...selected, e] : selected.filter((s) => s.id !== e.id);
                 render();
               });
-              const button = h('button', { class: format ? 'primary small' : 'small', disabled: !format }, format ? 'Import' : 'Not supported') as HTMLButtonElement;
-              button.addEventListener('click', () => void importOne(e, button));
+              const recording = !format && isRecording(e.name, e.mimeType);
+              const button = h('button', { class: format || recording ? 'primary small' : 'small', disabled: !format && !recording }, format ? 'Import' : recording ? '🎙 Transcribe on desktop' : 'Not supported') as HTMLButtonElement;
+              button.addEventListener('click', () => {
+                if (!recording) return void importOne(e, button);
+                button.disabled = true;
+                void app
+                  .reconnectNow()
+                  .then(() => sendRecording(app.storage, e.path))
+                  .then(() => app.go('#/queue'))
+                  .catch((err: Error) => {
+                    message.replaceChildren(h('p', { class: 'error', role: 'alert' }, err.message));
+                    button.disabled = false;
+                  });
+              });
               return h(
                 'div',
                 { class: 'row' },
@@ -100,7 +128,7 @@ export function inboxScreen(app: App): HTMLElement {
                   'div',
                   { class: 'grow' },
                   h('div', { class: 'name' }, e.name),
-                  h('div', { class: 'muted small' }, [format ? FORMAT_LABEL[format] : 'Unknown type', e.size ? formatBytes(e.size) : '', formatDate(e.modifiedTime)].filter(Boolean).join(' · ')),
+                  h('div', { class: 'muted small' }, [format ? FORMAT_LABEL[format] : recording ? 'Recording' : 'Unknown type', e.size ? formatBytes(e.size) : '', formatDate(e.modifiedTime)].filter(Boolean).join(' · ')),
                 ),
                 button,
               );

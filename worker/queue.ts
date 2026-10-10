@@ -21,6 +21,8 @@ export interface QueueDeps {
   heartbeatMs: number;
   now?: () => number;
   log?: (msg: string, err?: unknown) => void;
+  /** Runs a transcribe job (recording → item). */
+  transcribe?: (job: Job, onDetail: (detail: string) => void) => Promise<{ itemPath: string; realTimeFactor: number }>;
 }
 
 export class QueueWorker {
@@ -94,7 +96,7 @@ export class QueueWorker {
   private async run(job: Job): Promise<void> {
     const { storage } = this.d;
     const jobPath = `Queue/${job.id}.json`;
-    this.d.log?.(`Working on ${job.itemPath} (job ${job.id}, voice ${job.voice})`);
+    this.d.log?.(job.kind === 'transcribe' ? `Transcribing ${job.source} (job ${job.id})` : `Working on ${job.itemPath} (job ${job.id}, voice ${job.voice})`);
     this.set({ kind: 'working', job, detail: 'Starting…' });
 
     let progress: Job['progress'] = { chaptersDone: 0, chaptersTotal: job.chapters.length };
@@ -110,10 +112,21 @@ export class QueueWorker {
     };
     const timer = setInterval(() => void beat(), this.d.heartbeatMs);
     const startedAt = this.now();
-    const item = job.itemPath.split('/').pop() ?? job.itemPath;
+    const item = (job.kind === 'transcribe' ? job.source : job.itemPath)?.split('/').pop() ?? job.itemPath;
     const minutes = () => Math.round((this.now() - startedAt) / 6000) / 10;
 
     try {
+      if (job.kind === 'transcribe') {
+        if (!this.d.transcribe) throw new Error('This worker cannot transcribe.');
+        const r = await this.d.transcribe(job, (detail) => this.set({ kind: 'working', job, detail }));
+        clearInterval(timer);
+        await storage.complete(job.id, { status: 'done', itemPath: r.itemPath });
+        this.d.log?.(`Done: transcribed ${job.source} → ${r.itemPath} at ${r.realTimeFactor.toFixed(1)}× real time`);
+        this.lastError = undefined;
+        this.remember({ at: new Date(this.now()).toISOString(), item, chapters: 0, result: 'done', realTimeFactor: Math.round(r.realTimeFactor * 10) / 10, minutes: minutes() });
+        this.set({ kind: 'idle' });
+        return;
+      }
       const result = await generateItem(job.itemPath, job.voice, {
         storage,
         engine: this.d.engine,

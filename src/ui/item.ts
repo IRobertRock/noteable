@@ -196,7 +196,9 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
                 ),
         ),
 
-      item.review
+      item.recording
+        ? h('p', { class: 'muted small' }, `Transcribed from ${item.recording.file} (${formatDuration(item.recording.durationSec)}). The audio is the original recording; the text is Whisper's transcript, so expect a few wrong words.`)
+        : item.review
         ? h('p', { class: 'muted small' }, 'A course review: it plays chapters from other items, so it has nothing to generate or edit.')
         : done === 0 || showGenerate || mine || !ready
           ? generateSection(item, mine, done)
@@ -229,6 +231,7 @@ export function itemScreen(app: App, itemPath: string): HTMLElement {
             ),
             c.status === 'done' &&
               !item.review &&
+              !item.recording &&
               !mine?.running &&
               !desktopJob &&
               h(

@@ -1,7 +1,7 @@
 // Desktop queue: jobs sent with "Send to desktop" and what the worker is doing.
 
 import { itemHash, type App } from '../app';
-import { listJobs, removeJob, retryJob, type JobView } from '../queue/jobs';
+import { jobName, listJobs, removeJob, retryJob, type JobView } from '../queue/jobs';
 import { VOICES } from '../model/voices';
 import { fill, h } from './h';
 import { describeWorker, isOnline, readWorkerStatus, setWorkerPaused, type WorkerStatus } from '../queue/workerStatus';
@@ -100,8 +100,8 @@ export function queueScreen(app: App): HTMLElement {
   };
 
   const row = (j: JobView) => {
-    const name = j.itemPath.split('/').pop() ?? j.itemPath;
-    const voice = VOICES.find((v) => v.id === j.voice)?.name ?? j.voice;
+    const name = jobName(j);
+    const voice = j.kind === 'transcribe' ? 'transcript' : (VOICES.find((v) => v.id === j.voice)?.name ?? j.voice);
     const [pill, cls] = describe(j);
     return h(
       'div',
@@ -110,7 +110,7 @@ export function queueScreen(app: App): HTMLElement {
         'div',
         { class: 'grow' },
         h('a', { class: 'name', href: itemHash(j.itemPath) }, name),
-        h('div', { class: 'muted small' }, `${j.chapters.length} chapter${j.chapters.length === 1 ? '' : 's'} · ${voice} · ${detail(j)}`),
+        h('div', { class: 'muted small' }, j.kind === 'transcribe' ? `Recording → text · ${detail(j)}` : `${j.chapters.length} chapter${j.chapters.length === 1 ? '' : 's'} · ${voice} · ${detail(j)}`),
         j.error && h('div', { class: 'error small' }, j.error),
       ),
       h('span', { class: `pill ${cls}` }, pill),

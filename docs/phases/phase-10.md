@@ -57,3 +57,8 @@ Audio sounds right (names and jargon pronounced correctly, two voices for Q and 
 - **Maths:** powers (x^2 → "x squared", ^n → "to the power of n", ², ³), ≤ ≥ ≠ ≈ ± × ÷ → ∞ π Σ Δ √, %, and " = ", " < ", " > " with spaces. Fractions only between numbers, single letters or capital abbreviations (MC/MR → "MC over MR"), so dates, "and/or" and units like km/h stay as written.
 - **Tables:** rows are read with their column headers ("Year: 2020; GDP: 1.2") in guides and markdown, Word and EPUB tables with a header row, and Google Docs.
 - Tests: 161. Worker restarted with the GPU engine.
+
+## Later finding (2026-10-09, Phase 13)
+
+The GPU spike measured speed only. On the RX 9070 XT, Kokoro on WebGPU (any Chrome backend, fp32 or fp16) returns garbage samples. The GPU engine now checks a test sentence and every chunk, and falls back to the CPU (8.5×) when the check fails, which on this PC is always for now. No bad audio was delivered: the desktop jobs before the fix ran on the CPU. Details in phase-13.md.
+

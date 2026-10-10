@@ -3,6 +3,7 @@
 import { readJson, STALE_JOB_MS, writeJson, type Job, type Storage } from '../storage/Storage';
 import { ITEM_FILE, type Item } from '../model/item';
 import type { IndexedItem } from '../library/libraryIndex';
+import { recordingTitle } from '../import/transcript';
 
 export type JobView = Job & { stalled: boolean; waitingMs: number; sinceHeartbeatMs?: number };
 
@@ -60,6 +61,17 @@ export async function markChapterForRegenerating(storage: Storage, itemPath: str
   item.updatedAt = new Date().toISOString();
   await writeJson(storage, file, item);
   return item;
+}
+
+/** Queue a lecture recording (already in Drive, e.g. the Inbox) for transcription on the desktop. */
+export async function sendRecording(storage: Storage, sourcePath: string): Promise<string> {
+  const name = sourcePath.split('/').pop() ?? sourcePath;
+  return storage.enqueue({ kind: 'transcribe', source: sourcePath, itemPath: `Library/General/${recordingTitle(name)}`, chapters: [], voice: '' });
+}
+
+/** What a job is about, for lists. */
+export function jobName(j: Job): string {
+  return j.kind === 'transcribe' && j.status !== 'done' ? `🎙 ${(j.source ?? '').split('/').pop()}` : (j.itemPath.split('/').pop() ?? j.itemPath);
 }
 
 /** Cancel a job that hasn't started, or clear a finished one from the list. */

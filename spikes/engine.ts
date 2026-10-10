@@ -79,6 +79,20 @@ function resample24to16(pcm: Float32Array): Float32Array {
   return out;
 }
 
+let decoded: Float32Array | null = null;
+
+async function decodeAt(data: ArrayBuffer, rate: number): Promise<Float32Array> {
+  const ctx = new OfflineAudioContext(1, 1, rate);
+  const buf = await ctx.decodeAudioData(data);
+  if (buf.numberOfChannels === 1) return buf.getChannelData(0);
+  const out = new Float32Array(buf.length);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const ch = buf.getChannelData(c);
+    for (let i = 0; i < ch.length; i++) out[i] += ch[i] / buf.numberOfChannels;
+  }
+  return out;
+}
+
 const fileInput = Object.assign(document.createElement('input'), { type: 'file', id: 'recording' });
 document.body.append(fileInput);
 
@@ -88,6 +102,22 @@ document.body.append(fileInput);
   async generate(text: string, voice: string): Promise<string> {
     const pcm = await engine.generate(text, voice);
     return toBase64(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+  },
+  /** Decodes the file the worker put in #recording (mono, `rate` Hz); returns the sample count. */
+  async decodeFile(rate: number): Promise<number> {
+    const file = fileInput.files?.[0];
+    if (!file) throw new Error('No recording given');
+    decoded = await decodeAt(await file.arrayBuffer(), rate);
+    return decoded.length;
+  },
+  /** A slice of the decoded audio, base64 Float32 (the worker pulls it in pieces). */
+  decodedChunk(start: number, length: number): string {
+    if (!decoded) throw new Error('Nothing decoded');
+    const part = decoded.subarray(start, start + length);
+    return toBase64(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
+  },
+  releaseDecoded(): void {
+    decoded = null;
   },
   /** Transcribes the file the worker put in #recording. */
   async transcribeFile(model: string, o?: AsrOptions): Promise<{ durationSec: number; segments: TimedText[]; elapsedSec: number }> {

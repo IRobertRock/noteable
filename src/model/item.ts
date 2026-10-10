@@ -39,6 +39,8 @@ export interface Item {
   ocr?: boolean;
   /** Where it came from in Zotero (for the item page). */
   zotero?: { key: string; authors: string; year?: string; publication?: string };
+  /** Made from a recording: the audio is the original (cut into parts), the text a transcript. */
+  recording?: { file: string; durationSec: number; model: string };
   /** A course review: its chapters point at other items' text and audio. */
   review?: boolean;
   /** The guide.md version this item last used or dismissed. */

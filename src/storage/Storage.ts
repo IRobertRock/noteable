@@ -26,6 +26,10 @@ export interface Job {
   /** Chapter numbers to generate (1-based). */
   chapters: number[];
   voice: string;
+  /** 'transcribe': make an item from a recording (`source`); itemPath is set when done. Default 'generate'. */
+  kind?: 'generate' | 'transcribe';
+  /** For transcribe jobs: the recording, e.g. "Inbox/Lecture 3.m4a". */
+  source?: string;
   status: JobStatus;
   createdAt: string;
   updatedAt: string;
@@ -37,11 +41,13 @@ export interface Job {
   error?: string;
 }
 
-export type NewJob = Pick<Job, 'itemPath' | 'chapters' | 'voice'> & { id?: string };
+export type NewJob = Pick<Job, 'itemPath' | 'chapters' | 'voice' | 'kind' | 'source'> & { id?: string };
 
 export interface JobResult {
   status: 'done' | 'failed';
   error?: string;
+  /** Transcribe jobs: the item that was made. */
+  itemPath?: string;
 }
 
 /** A job in `working` with no heartbeat for this long goes back to `pending`. */

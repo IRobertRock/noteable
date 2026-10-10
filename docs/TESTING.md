@@ -21,6 +21,7 @@ Everything waiting for you to test, newest phase last. Work through it whenever 
 | 10 | GPU desktop, pronunciations, two voices, Share to Noteable, picture slides, maths/tables | **Not tested yet** |
 | 11 | Smart rewind, car mode, auto-download on Wi-Fi, voice samples, light theme, safety copies | **Not tested yet** |
 | 12 | Search, say your answer, exam countdown, glossary, export notes, recap | **Not tested yet** |
+| 13 | Send a whole course, PC stays awake, redo one chapter, lecture recordings → text, desktop panel, iPhone | **Not tested yet** |
 
 ---
 
@@ -173,14 +174,14 @@ Uses the Phase 7 guide (**ECON 1000 Week 3 — Opportunity Cost (study guide)**)
 
 ## Phase 10 — voices, GPU, sharing (about 15 minutes)
 
-> Done when: "Mankiw" and "PPF" are said correctly in a regenerated chapter, a guide plays questions and answers in two voices, a page shared from Chrome lands in the Inbox, and the desktop logs GPU generation faster than 8.5×.
+> Done when: "Mankiw" and "PPF" are said correctly in a regenerated chapter, a guide plays questions and answers in two voices, a page shared from Chrome lands in the Inbox, and the desktop generates it with the right engine.
 
 - [ ] 1. Account → **Pronunciations** → **＋ Add**: `Mankiw` → `Man-kyoo`, and `PPF` → `P P F`. Type a sentence in the box underneath to check it, then **Save**.
 - [ ] 2. Regenerate a chapter that mentions them (or ask Claude for a short guide that does). They're said your way.
 - [ ] 3. Ask Claude for a guide whose header includes `voices:` with `question: Emma` and `answer: Michael` (or edit one). After import, the item says "Voices: Emma for questions, Michael for answers". Play **Review questions**: two different voices.
 - [ ] 4. In Chrome on the S23, open any article → ⋮ → **Share** → **Noteable**. Noteable opens on "Shared to Noteable" → **Save link to Inbox**, then **🤖 Copy prompt for Claude** and paste it into Claude. (If Noteable isn't in the share list, open the installed app once first; Android sometimes needs a reinstall after the manifest changes.)
 - [ ] 5. Share a PDF from Files or Gmail → Noteable → **Import**. The text preview opens.
-- [ ] 6. **Send to desktop** something long. On the PC, tray → **Open log**: you see "Voice engine: GPU (WebGPU in headless Chrome)", and "Done … at N× real time" with N above 8.5 for long items.
+- [ ] 6. **Send to desktop** something long. On the PC, tray → **Open log**. For now you'll see "GPU engine unavailable; using the CPU. GPU voice output failed the check…" and "Done … at about 8.5× real time". That's expected: the RX 9070 XT's WebGPU makes broken audio (found Oct 9, see phase 13), so the worker checks the GPU and uses the CPU. Listen to a minute of it: it should sound normal.
 - [ ] 7. Optional: import a slide deck that has screenshot-only slides; their text shows in the preview.
 
 ---
@@ -211,6 +212,23 @@ Uses the Phase 7 guide (**ECON 1000 Week 3 — Opportunity Cost (study guide)**)
 - [ ] 6. Course with study guides → **📖 Make glossary**. A "<Course> glossary" item opens with A–E… chapters. **Flashcards** works on it.
 - [ ] 7. Course → **📝 Export notes** → **Open the Google Doc**. Your highlights, bookmark notes and "again" flashcards are there.
 - [ ] 8. Leave an item for 3+ days, then open it. The Player offers **▶ Recap** (a guide's Recap chapter, or the last minute).
+
+---
+
+## Phase 13 — desktop power and the iPhone (about 25 minutes)
+
+> Done when: Rob sends a whole course to the desktop in one tap and the PC stays awake until it's done, regenerates one chapter after a pronunciation fix, turns a lecture recording into a readable item, pauses the worker from the phone, and installs, signs in and listens on the iPhone.
+
+Note: on this PC the GPU currently makes broken audio, so the desktop uses the CPU (about 8.5× real time). The Queue tab shows "Engine: CPU".
+
+- [ ] 1. Library → a course with 2+ items not yet generated → **🖥 Send all to desktop** → OK. The Queue tab lists one job per item.
+- [ ] 2. While they run, Queue shows **Now:** and "Keeping the PC awake". Leave the PC alone past its sleep time: it stays on until the queue is empty, then sleeps as normal.
+- [ ] 3. Queue → **⏸ Pause desktop**. Within a minute the line says "Desktop paused" (it finishes the current job first). **▶ Resume desktop** starts it again.
+- [ ] 4. Add a pronunciation (Account → Pronunciations), then on an item tap **↻** next to a chapter that uses the word → OK → **Send to desktop**. Only that chapter is redone, and it now says the word your way.
+- [ ] 5. Record a few minutes of a lecture (or yourself talking) with the phone's recorder. Inbox → **⬆ Upload from this device** → pick the recording. It appears in the Inbox → **🎙 Transcribe on desktop**.
+- [ ] 6. When the job is done, the new item (named after the file) is in Library → General. **Read** shows the transcript; **▶ Play** plays your recording. Try **🤖 Ask Claude for a study guide** on it.
+- [ ] 7. iPhone: open https://irobertrock.github.io/noteable/ in Safari → Share → **Add to Home Screen**. Open it from the home screen → **Sign in with Google**. It goes to Google's page and back, signed in.
+- [ ] 8. iPhone: play a downloaded item and lock the phone. Audio keeps playing and the lock screen has play/pause and skip. Note anything that misbehaves for Claude.
 
 ---
 
